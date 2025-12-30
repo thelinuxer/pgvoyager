@@ -11,8 +11,45 @@
 	import { oneDark } from '@codemirror/theme-one-dark';
 	import { autocompletion } from '@codemirror/autocomplete';
 	import { createSchemaCompletionSource } from '$lib/utils/sqlAutocomplete';
+	import { EditorView } from '@codemirror/view';
+	import { StateEffect, StateField, RangeSetBuilder } from '@codemirror/state';
+	import { Decoration, type DecorationSet } from '@codemirror/view';
 	import ResizeHandle from './ResizeHandle.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
+
+	// Error highlighting extension
+	const setErrorEffect = StateEffect.define<{ from: number; to: number } | null>();
+
+	const errorMark = Decoration.mark({ class: 'cm-error-highlight' });
+
+	const errorHighlightField = StateField.define<DecorationSet>({
+		create() {
+			return Decoration.none;
+		},
+		update(decorations, tr) {
+			for (const effect of tr.effects) {
+				if (effect.is(setErrorEffect)) {
+					if (effect.value === null) {
+						return Decoration.none;
+					}
+					const builder = new RangeSetBuilder<Decoration>();
+					builder.add(effect.value.from, effect.value.to, errorMark);
+					return builder.finish();
+				}
+			}
+			return decorations.map(tr.changes);
+		},
+		provide: (f) => EditorView.decorations.from(f)
+	});
+
+	const errorHighlightTheme = EditorView.baseTheme({
+		'.cm-error-highlight': {
+			backgroundColor: 'rgba(255, 0, 0, 0.3)',
+			borderBottom: '2px wavy #f38ba8'
+		}
+	});
+
+	let editorView: EditorView | null = null;
 
 	interface Props {
 		tab: Tab;
@@ -45,7 +82,9 @@
 				override: [completionSource],
 				activateOnTyping: true,
 				maxRenderedOptions: 50
-			})
+			}),
+			errorHighlightField,
+			errorHighlightTheme
 		];
 	});
 
@@ -55,6 +94,34 @@
 			query = tab.initialSql;
 		}
 	});
+
+	function highlightError(position: number) {
+		if (!editorView) return;
+
+		// Position is 1-based from PostgreSQL, convert to 0-based
+		const pos = position - 1;
+		const docLength = editorView.state.doc.length;
+
+		// Clamp position to valid range
+		const from = Math.max(0, Math.min(pos, docLength));
+		// Highlight the character at the error position (or to end if at last position)
+		const to = Math.min(from + 1, docLength);
+
+		editorView.dispatch({
+			effects: setErrorEffect.of({ from, to })
+		});
+	}
+
+	function clearErrorHighlight() {
+		if (!editorView) return;
+		editorView.dispatch({
+			effects: setErrorEffect.of(null)
+		});
+	}
+
+	function handleEditorReady(view: EditorView) {
+		editorView = view;
+	}
 
 	function handleEditorResize(delta: number) {
 		if (!containerEl) return;
@@ -68,6 +135,7 @@
 
 		isExecuting = true;
 		result = null;
+		clearErrorHighlight();
 
 		const startTime = performance.now();
 
@@ -76,15 +144,34 @@
 			result = res;
 			executionTime = res.duration;
 
-			// Record successful query in history
-			queryHistory.add({
-				sql: query.trim(),
-				connectionId: $activeConnectionId,
-				connectionName: $activeConnection?.name || 'Unknown',
-				duration: res.duration,
-				rowCount: res.rowCount,
-				success: true
-			});
+			// Check if the result contains an error (returned in response body)
+			if (res.error) {
+				// Highlight error position if available
+				if (res.errorPosition && res.errorPosition > 0) {
+					highlightError(res.errorPosition);
+				}
+
+				// Record failed query in history
+				queryHistory.add({
+					sql: query.trim(),
+					connectionId: $activeConnectionId,
+					connectionName: $activeConnection?.name || 'Unknown',
+					duration: res.duration || performance.now() - startTime,
+					rowCount: 0,
+					success: false,
+					error: res.error
+				});
+			} else {
+				// Record successful query in history
+				queryHistory.add({
+					sql: query.trim(),
+					connectionId: $activeConnectionId,
+					connectionName: $activeConnection?.name || 'Unknown',
+					duration: res.duration,
+					rowCount: res.rowCount,
+					success: true
+				});
+			}
 		} catch (e) {
 			const errorMessage = e instanceof Error ? e.message : 'Query failed';
 			result = {
@@ -206,6 +293,7 @@
 			<CodeMirror
 				bind:value={query}
 				{extensions}
+				onready={handleEditorReady}
 				styles={{
 					'&': {
 						height: '100%',
@@ -223,8 +311,18 @@
 			<div class="results-loading">Executing query...</div>
 		{:else if result?.error}
 			<div class="results-error">
-				<h4>Error</h4>
+				<h4>Error{#if result.errorPosition} at position {result.errorPosition}{/if}</h4>
 				<pre>{result.error}</pre>
+				{#if result.errorDetail}
+					<div class="error-detail">
+						<strong>Detail:</strong> {result.errorDetail}
+					</div>
+				{/if}
+				{#if result.errorHint}
+					<div class="error-hint">
+						<strong>Hint:</strong> {result.errorHint}
+					</div>
+				{/if}
 			</div>
 		{:else if result}
 			<div class="results-header">
@@ -363,6 +461,19 @@
 		font-family: var(--font-mono);
 		font-size: 12px;
 		white-space: pre-wrap;
+	}
+
+	.error-detail,
+	.error-hint {
+		margin-top: 8px;
+		padding: 8px 12px;
+		background: var(--color-bg-tertiary);
+		border-radius: var(--radius-sm);
+		font-size: 12px;
+	}
+
+	.error-hint {
+		color: var(--color-warning, #f9e2af);
 	}
 
 	.spinning {

@@ -6,11 +6,14 @@ type QueryRequest struct {
 }
 
 type QueryResult struct {
-	Columns  []ColumnInfo      `json:"columns"`
-	Rows     []map[string]any  `json:"rows"`
-	RowCount int               `json:"rowCount"`
-	Duration float64           `json:"duration"` // milliseconds
-	Error    string            `json:"error,omitempty"`
+	Columns       []ColumnInfo     `json:"columns"`
+	Rows          []map[string]any `json:"rows"`
+	RowCount      int              `json:"rowCount"`
+	Duration      float64          `json:"duration"` // milliseconds
+	Error         string           `json:"error,omitempty"`
+	ErrorPosition int              `json:"errorPosition,omitempty"` // 1-based character position in SQL
+	ErrorHint     string           `json:"errorHint,omitempty"`
+	ErrorDetail   string           `json:"errorDetail,omitempty"`
 }
 
 type ColumnInfo struct {

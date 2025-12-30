@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -9,15 +10,46 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thelinuxer/pgvoyager/internal/models"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/thelinuxer/pgvoyager/internal/models"
 )
 
 var identifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 func isValidIdentifier(s string) bool {
 	return identifierRegex.MatchString(s)
+}
+
+// buildErrorResult creates a QueryResult with detailed error information from PgError
+// positionOffset is added to the error position (for multi-statement queries)
+func buildErrorResult(err error, duration float64, positionOffset int) models.QueryResult {
+	result := models.QueryResult{
+		Error:    err.Error(),
+		Duration: duration,
+	}
+
+	// Try to extract PostgreSQL-specific error details
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		result.Error = pgErr.Message
+		if pgErr.Code != "" {
+			result.Error += " (SQLSTATE " + pgErr.Code + ")"
+		}
+		if pgErr.Position > 0 {
+			// Add offset for multi-statement queries
+			result.ErrorPosition = int(pgErr.Position) + positionOffset
+		}
+		if pgErr.Hint != "" {
+			result.ErrorHint = pgErr.Hint
+		}
+		if pgErr.Detail != "" {
+			result.ErrorDetail = pgErr.Detail
+		}
+	}
+
+	return result
 }
 
 func quoteIdentifier(s string) string {
@@ -308,15 +340,24 @@ func GetForeignKeyPreview(c *gin.Context) {
 	})
 }
 
+// StatementInfo holds a SQL statement and its position in the original query
+type StatementInfo struct {
+	SQL    string
+	Offset int // 0-based byte offset in original SQL where this statement starts
+}
+
 // splitStatements splits SQL into individual statements, handling string literals
-func splitStatements(sql string) []string {
-	var statements []string
+func splitStatements(sql string) []StatementInfo {
+	var statements []StatementInfo
 	var current strings.Builder
 	inString := false
 	stringChar := rune(0)
+	stmtStartByte := 0
 
+	byteOffset := 0
 	for i, ch := range sql {
 		current.WriteRune(ch)
+		charLen := len(string(ch))
 
 		if !inString {
 			if ch == '\'' || ch == '"' {
@@ -328,25 +369,38 @@ func splitStatements(sql string) []string {
 				stmt = strings.TrimSuffix(stmt, ";")
 				stmt = strings.TrimSpace(stmt)
 				if len(stmt) > 0 {
-					statements = append(statements, stmt)
+					// Find actual start by skipping whitespace from stmtStartByte
+					actualStart := stmtStartByte
+					for actualStart < len(sql) && (sql[actualStart] == ' ' || sql[actualStart] == '\t' || sql[actualStart] == '\n' || sql[actualStart] == '\r') {
+						actualStart++
+					}
+					statements = append(statements, StatementInfo{SQL: stmt, Offset: actualStart})
 				}
 				current.Reset()
+				stmtStartByte = byteOffset + charLen
 			}
 		} else {
 			if ch == stringChar {
 				// Check for escaped quote (two consecutive quotes)
 				if i+1 < len(sql) && rune(sql[i+1]) == stringChar {
+					byteOffset += charLen
 					continue
 				}
 				inString = false
 			}
 		}
+		byteOffset += charLen
 	}
 
 	// Handle last statement (may not end with semicolon)
 	stmt := strings.TrimSpace(current.String())
 	if len(stmt) > 0 {
-		statements = append(statements, stmt)
+		// Find actual start by skipping whitespace from stmtStartByte
+		actualStart := stmtStartByte
+		for actualStart < len(sql) && (sql[actualStart] == ' ' || sql[actualStart] == '\t' || sql[actualStart] == '\n' || sql[actualStart] == '\r') {
+			actualStart++
+		}
+		statements = append(statements, StatementInfo{SQL: stmt, Offset: actualStart})
 	}
 
 	return statements
@@ -382,30 +436,32 @@ func ExecuteQuery(c *gin.Context) {
 	// Split into statements and handle multi-statement queries
 	statements := splitStatements(req.SQL)
 
+	// Track the offset of the statement being executed (for error position)
+	currentOffset := 0
+
 	// If multiple statements, execute non-SELECT statements first with Exec
 	// then execute the final SELECT with Query
 	if len(statements) > 1 && len(req.Params) == 0 {
-		var selectStmt string
-		for _, stmt := range statements {
-			if isSelectStatement(stmt) {
-				selectStmt = stmt
+		var selectStmtInfo *StatementInfo
+		for i := range statements {
+			stmtInfo := &statements[i]
+			if isSelectStatement(stmtInfo.SQL) {
+				selectStmtInfo = stmtInfo
 			} else {
 				// Execute non-SELECT statements (SET, CREATE, etc.)
-				_, err := pool.Exec(ctx, stmt)
+				_, err := pool.Exec(ctx, stmtInfo.SQL)
 				if err != nil {
 					duration := time.Since(start).Seconds() * 1000
-					c.JSON(http.StatusOK, models.QueryResult{
-						Error:    err.Error(),
-						Duration: duration,
-					})
+					c.JSON(http.StatusOK, buildErrorResult(err, duration, stmtInfo.Offset))
 					return
 				}
 			}
 		}
 
 		// If there was a SELECT statement, execute it
-		if selectStmt != "" {
-			req.SQL = selectStmt
+		if selectStmtInfo != nil {
+			req.SQL = selectStmtInfo.SQL
+			currentOffset = selectStmtInfo.Offset
 		} else {
 			// All statements were non-SELECT, return success
 			duration := time.Since(start).Seconds() * 1000
@@ -417,16 +473,16 @@ func ExecuteQuery(c *gin.Context) {
 			})
 			return
 		}
+	} else if len(statements) == 1 {
+		// Single statement - use its offset (usually 0, but could have leading whitespace)
+		currentOffset = statements[0].Offset
 	}
 
 	rows, err := pool.Query(ctx, req.SQL, req.Params...)
 	duration := time.Since(start).Seconds() * 1000
 
 	if err != nil {
-		c.JSON(http.StatusOK, models.QueryResult{
-			Error:    err.Error(),
-			Duration: duration,
-		})
+		c.JSON(http.StatusOK, buildErrorResult(err, duration, currentOffset))
 		return
 	}
 	defer rows.Close()
@@ -444,10 +500,7 @@ func ExecuteQuery(c *gin.Context) {
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
-			c.JSON(http.StatusOK, models.QueryResult{
-				Error:    err.Error(),
-				Duration: duration,
-			})
+			c.JSON(http.StatusOK, buildErrorResult(err, duration, currentOffset))
 			return
 		}
 

@@ -161,6 +161,9 @@ export interface QueryResult {
 	rowCount: number;
 	duration: number;
 	error?: string;
+	errorPosition?: number; // 1-based character position in SQL
+	errorHint?: string;
+	errorDetail?: string;
 }
 
 export interface SavedQuery {

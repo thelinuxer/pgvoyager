@@ -3,6 +3,7 @@
 	import { schemaTree, expandedNodes, toggleNode, isLoading, error } from '$lib/stores/schema';
 	import { tabs } from '$lib/stores/tabs';
 	import type { SchemaTreeNode, Table } from '$lib/types';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
 		width: number;
@@ -168,113 +169,41 @@
 	}
 </script>
 
-{#snippet iconSchema()}
-	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
-	</svg>
-{/snippet}
-
-{#snippet iconFolder(expanded: boolean)}
-	{#if expanded}
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-			<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
-			<path d="M2 10h20"/>
-		</svg>
-	{:else}
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-			<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
-		</svg>
-	{/if}
-{/snippet}
-
-{#snippet iconTable()}
-	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<rect x="3" y="3" width="18" height="18" rx="2"/>
-		<path d="M3 9h18M3 15h18M9 3v18"/>
-	</svg>
-{/snippet}
-
-{#snippet iconView()}
-	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-		<circle cx="12" cy="12" r="3"/>
-	</svg>
-{/snippet}
-
-{#snippet iconFunction()}
-	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<path d="M4 17l6-6-6-6M12 19h8"/>
-	</svg>
-{/snippet}
-
-{#snippet iconSequence()}
-	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<path d="M12 2v20M2 12h20"/>
-		<path d="M12 2l4 4-4 4"/>
-	</svg>
-{/snippet}
-
-{#snippet iconType()}
-	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<path d="M4 7V4h16v3"/>
-		<path d="M9 20h6"/>
-		<path d="M12 4v16"/>
-	</svg>
-{/snippet}
-
 {#snippet getIcon(node: SchemaTreeNode)}
 	{#if node.type === 'schema'}
-		{@render iconSchema()}
+		<Icon name="folder" size={14} />
 	{:else if node.type === 'folder'}
-		{@render iconFolder(isExpanded(node))}
+		<Icon name={isExpanded(node) ? 'folder-open' : 'folder'} size={14} />
 	{:else if node.type === 'table'}
-		{@render iconTable()}
+		<Icon name="table" size={14} />
 	{:else if node.type === 'view'}
-		{@render iconView()}
+		<Icon name="eye" size={14} />
 	{:else if node.type === 'function'}
-		{@render iconFunction()}
+		<Icon name="terminal" size={14} />
 	{:else if node.type === 'sequence'}
-		{@render iconSequence()}
+		<Icon name="sequence" size={14} />
 	{:else if node.type === 'type'}
-		{@render iconType()}
+		<Icon name="type" size={14} />
 	{:else}
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-			<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-			<path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
-		</svg>
+		<Icon name="file" size={14} />
 	{/if}
 {/snippet}
 
 <aside class="sidebar" style="width: {width}px">
 	<div class="sidebar-header">
 		<span class="sidebar-title">
-			<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<circle cx="11" cy="11" r="8"/>
-				<path d="M21 21l-4.35-4.35"/>
-			</svg>
+			<Icon name="search" size={12} />
 			Explorer
 		</span>
 		<div class="sidebar-actions">
 			<button class="btn btn-sm btn-ghost" onclick={onShowSavedQueries} title="Saved Queries">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-					<polyline points="17 21 17 13 7 13 7 21"/>
-					<polyline points="7 3 7 8 15 8"/>
-				</svg>
+				<Icon name="save" size={14} />
 			</button>
 			<button class="btn btn-sm btn-ghost" onclick={onShowHistory} title="Query History">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="12" cy="12" r="10"/>
-					<polyline points="12 6 12 12 16 14"/>
-				</svg>
+				<Icon name="clock" size={14} />
 			</button>
 			<button class="btn btn-sm btn-ghost" onclick={() => tabs.openQuery()} title="New Query">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-					<path d="M14 2v6h6"/>
-					<line x1="12" y1="18" x2="12" y2="12"/>
-					<line x1="9" y1="15" x2="15" y2="15"/>
-				</svg>
+				<Icon name="file-code" size={14} />
 			</button>
 		</div>
 	</div>
@@ -282,10 +211,7 @@
 	{#if $activeConnection && !$isLoading && !$error && $schemaTree.length > 0}
 		<div class="search-container">
 			<div class="search-input-wrapper">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
-					<circle cx="11" cy="11" r="8"/>
-					<path d="M21 21l-4.35-4.35"/>
-				</svg>
+				<Icon name="search" size={14} class="search-icon" />
 				<input
 					type="text"
 					class="search-input"
@@ -295,9 +221,7 @@
 				/>
 				{#if searchQuery}
 					<button class="search-clear" onclick={clearSearch} title="Clear (Esc)">
-						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M18 6L6 18M6 6l12 12"/>
-						</svg>
+						<Icon name="x" size={12} />
 					</button>
 				{/if}
 			</div>
@@ -310,34 +234,21 @@
 	<div class="sidebar-content">
 		{#if !$activeConnection}
 			<div class="sidebar-empty">
-				<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-					<path d="M12 2L2 7l10 5 10-5-10-5z"/>
-					<path d="M2 17l10 5 10-5"/>
-					<path d="M2 12l10 5 10-5"/>
-				</svg>
+				<Icon name="layers" size={32} strokeWidth={1.5} />
 				<p>No connection selected</p>
 				<button class="btn btn-sm btn-secondary" onclick={onNewConnection}>
-					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="12" y1="5" x2="12" y2="19"/>
-						<line x1="5" y1="12" x2="19" y2="12"/>
-					</svg>
+					<Icon name="plus" size={12} />
 					Connect
 				</button>
 			</div>
 		{:else if $isLoading}
 			<div class="sidebar-loading">
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
-					<path d="M23 4v6h-6M1 20v-6h6"/>
-					<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-				</svg>
+				<Icon name="refresh" size={20} class="spinning" />
 				Loading schema...
 			</div>
 		{:else if $error}
 			<div class="sidebar-error">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="12" cy="12" r="10"/>
-					<path d="M12 8v4M12 16h.01"/>
-				</svg>
+				<Icon name="alert-circle" size={16} />
 				{$error}
 			</div>
 		{:else if $schemaTree.length === 0}
@@ -360,30 +271,20 @@
 	<div class="context-menu-backdrop" onclick={closeContextMenu}></div>
 	<div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px">
 		<button class="context-menu-item" onclick={() => handleShowFirst100(menuNode)}>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M12 19V5M5 12l7-7 7 7"/>
-			</svg>
+			<Icon name="arrow-up" size={14} />
 			Show first 100 rows
 		</button>
 		<button class="context-menu-item" onclick={() => handleShowLast100(menuNode)}>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M12 5v14M5 12l7 7 7-7"/>
-			</svg>
+			<Icon name="arrow-down" size={14} />
 			Show last 100 rows
 		</button>
 		<div class="context-menu-separator"></div>
 		<button class="context-menu-item" onclick={() => handleOpenInQuery(menuNode)}>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-				<path d="M14 2v6h6"/>
-			</svg>
+			<Icon name="file" size={14} />
 			Open in Query Editor
 		</button>
 		<button class="context-menu-item" onclick={() => handleCopyName(menuNode)}>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<rect x="9" y="9" width="13" height="13" rx="2"/>
-				<path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-			</svg>
+			<Icon name="copy" size={14} />
 			Copy table name
 		</button>
 	</div>
@@ -399,9 +300,7 @@
 		>
 			{#if node.children && node.children.length > 0}
 				<span class="tree-chevron" class:expanded={isExpanded(node)}>
-					<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M9 18l6-6-6-6"/>
-					</svg>
+					<Icon name="chevron-right" size={10} />
 				</span>
 			{:else}
 				<span class="tree-spacer"></span>
@@ -422,11 +321,7 @@
 				}}
 				title="More options"
 			>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="12" cy="12" r="1"/>
-					<circle cx="12" cy="5" r="1"/>
-					<circle cx="12" cy="19" r="1"/>
-				</svg>
+				<Icon name="dots-vertical" size={14} />
 			</button>
 		{/if}
 	</div>

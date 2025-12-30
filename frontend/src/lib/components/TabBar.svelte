@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tabs, activeTabId } from '$lib/stores/tabs';
 	import type { Tab } from '$lib/types';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	function handleTabClick(tab: Tab) {
 		activeTabId.set(tab.id);
@@ -28,28 +29,6 @@
 	}
 </script>
 
-{#snippet iconTable()}
-	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<rect x="3" y="3" width="18" height="18" rx="2"/>
-		<path d="M3 9h18M3 15h18M9 3v18"/>
-	</svg>
-{/snippet}
-
-{#snippet iconQuery()}
-	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-		<path d="M14 2v6h6"/>
-		<path d="M10 12l-2 2 2 2M14 12l2 2-2 2"/>
-	</svg>
-{/snippet}
-
-{#snippet iconView()}
-	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-		<circle cx="12" cy="12" r="3"/>
-	</svg>
-{/snippet}
-
 {#snippet iconPin()}
 	<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
 		<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
@@ -57,21 +36,15 @@
 	</svg>
 {/snippet}
 
-{#snippet iconClose()}
-	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-		<path d="M18 6L6 18M6 6l12 12"/>
-	</svg>
-{/snippet}
-
 {#snippet getTabIcon(tab: Tab)}
 	{#if tab.type === 'table'}
-		{@render iconTable()}
+		<Icon name="table" size={12} />
 	{:else if tab.type === 'query'}
-		{@render iconQuery()}
+		<Icon name="file-code" size={12} />
 	{:else if tab.type === 'view'}
-		{@render iconView()}
+		<Icon name="eye" size={12} />
 	{:else}
-		{@render iconTable()}
+		<Icon name="table" size={12} />
 	{/if}
 {/snippet}
 
@@ -101,7 +74,7 @@
 						onclick={(e) => handleTabClose(e, tab)}
 						title="Close"
 					>
-						{@render iconClose()}
+						<Icon name="x" size={12} />
 					</button>
 				{/if}
 			</div>
@@ -114,10 +87,7 @@
 			onclick={() => tabs.openQuery()}
 			title="New Query (Ctrl+N)"
 		>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<line x1="12" y1="5" x2="12" y2="19"/>
-				<line x1="5" y1="12" x2="19" y2="12"/>
-			</svg>
+			<Icon name="plus" size={14} />
 		</button>
 	</div>
 </div>

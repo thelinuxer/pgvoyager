@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ForeignKeyPreview } from '$lib/types';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
 		preview: ForeignKeyPreview | null;
@@ -45,9 +46,7 @@
 						<tr>
 							<td class="fk-col-name" class:pk={col.isPrimaryKey}>
 								{#if col.isPrimaryKey}
-									<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" class="pk-icon">
-										<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-									</svg>
+									<Icon name="key" size={10} class="pk-icon" />
 								{/if}
 								{col.name}
 							</td>

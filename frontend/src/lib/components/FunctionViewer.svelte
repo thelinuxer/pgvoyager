@@ -2,6 +2,7 @@
 	import { activeConnectionId } from '$lib/stores/connections';
 	import { schemaApi } from '$lib/api/client';
 	import type { Tab, Function } from '$lib/types';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
 		tab: Tab;
@@ -40,18 +41,13 @@
 	<div class="toolbar">
 		<div class="toolbar-left">
 			<div class="breadcrumb">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M4 17l6-6-6-6M12 19h8"/>
-				</svg>
+				<Icon name="terminal" size={14} />
 				<span class="function-name">{tab.schema}.{tab.functionName}</span>
 			</div>
 		</div>
 		<div class="toolbar-right">
 			<button class="btn btn-sm btn-ghost" onclick={loadFunction} disabled={isLoading}>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class:spinning={isLoading}>
-					<path d="M23 4v6h-6M1 20v-6h6"/>
-					<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-				</svg>
+				<Icon name="refresh" size={14} class={isLoading ? 'spinning' : ''} />
 				Refresh
 			</button>
 		</div>

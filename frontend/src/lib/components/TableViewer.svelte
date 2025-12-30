@@ -5,6 +5,7 @@
 	import { dataApi } from '$lib/api/client';
 	import type { Tab, TableDataResponse, ColumnInfo, ForeignKeyPreview, TableLocation } from '$lib/types';
 	import FKPreviewPopup from './FKPreviewPopup.svelte';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
 		tab: Tab;
@@ -396,9 +397,7 @@
 					disabled={!canGoBack}
 					title="Go Back (Alt+←)"
 				>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M19 12H5M12 19l-7-7 7-7"/>
-					</svg>
+					<Icon name="arrow-left" size={16} />
 				</button>
 				<button
 					class="btn btn-sm btn-ghost nav-btn"
@@ -406,28 +405,19 @@
 					disabled={!canGoForward}
 					title="Go Forward (Alt+→)"
 				>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M5 12h14M12 5l7 7-7 7"/>
-					</svg>
+					<Icon name="arrow-right" size={16} />
 				</button>
 			</div>
 			<div class="breadcrumb">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<rect x="3" y="3" width="18" height="18" rx="2"/>
-					<path d="M3 9h18M9 21V9"/>
-				</svg>
+				<Icon name="table" size={14} />
 				<span class="table-name">{tab.schema}.{tab.table}</span>
 			</div>
 			{#if currentLocation?.filter}
 				<div class="filter-badge" title="Filtered by {currentLocation.filter.column} = {currentLocation.filter.value}">
-					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-					</svg>
+					<Icon name="filter" size={12} />
 					<span class="filter-text">{currentLocation.filter.column} = {currentLocation.filter.value}</span>
 					<button class="filter-clear" onclick={clearFilter} title="Clear filter">
-						<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-							<path d="M18 6L6 18M6 6l12 12"/>
-						</svg>
+						<Icon name="x" size={10} strokeWidth={3} />
 					</button>
 				</div>
 			{/if}
@@ -442,10 +432,7 @@
 					onclick={deleteSelectedRows}
 					disabled={isSaving}
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<polyline points="3 6 5 6 21 6"/>
-						<path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-					</svg>
+					<Icon name="trash" size={14} />
 					Delete ({selectedRows.size})
 				</button>
 			{/if}
@@ -455,10 +442,7 @@
 					onclick={openAddRowModal}
 					disabled={isSaving}
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="12" y1="5" x2="12" y2="19"/>
-						<line x1="5" y1="12" x2="19" y2="12"/>
-					</svg>
+					<Icon name="plus" size={14} />
 					Add Row
 				</button>
 			{/if}
@@ -470,17 +454,11 @@
 				disabled={!hasPrimaryKey && !editMode}
 				title={!hasPrimaryKey ? 'Table has no primary key - editing disabled' : editMode ? 'Exit Edit Mode' : 'Enter Edit Mode'}
 			>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-					<path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-				</svg>
+				<Icon name="edit" size={14} />
 				{editMode ? 'Done' : 'Edit'}
 			</button>
 			<button class="btn btn-sm btn-ghost" onclick={loadData} disabled={isLoading} title="Refresh">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class:spinning={isLoading}>
-					<path d="M23 4v6h-6M1 20v-6h6"/>
-					<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-				</svg>
+				<Icon name="refresh" size={14} class={isLoading ? 'spinning' : ''} />
 				Refresh
 			</button>
 		</div>
@@ -488,32 +466,21 @@
 
 	{#if isLoading && !data}
 		<div class="loading">
-			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
-				<path d="M23 4v6h-6M1 20v-6h6"/>
-				<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-			</svg>
+			<Icon name="refresh" size={24} class="spinning" />
 			Loading...
 		</div>
 	{:else if error}
 		<div class="error">
-			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<circle cx="12" cy="12" r="10"/>
-				<path d="M12 8v4M12 16h.01"/>
-			</svg>
+			<Icon name="alert-circle" size={20} />
 			{error}
 		</div>
 	{:else if data}
 		{#if crudError}
 			<div class="crud-error">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="12" cy="12" r="10"/>
-					<path d="M12 8v4M12 16h.01"/>
-				</svg>
+				<Icon name="alert-circle" size={16} />
 				{crudError}
 				<button class="crud-error-close" onclick={() => crudError = null}>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M18 6L6 18M6 6l12 12"/>
-					</svg>
+					<Icon name="x" size={14} />
 				</button>
 			</div>
 		{/if}
@@ -540,28 +507,17 @@
 								<div class="th-content">
 									{#if col.isPrimaryKey}
 										<span class="pk-icon" title="Primary Key">
-											<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-												<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-											</svg>
+											<Icon name="key" size={12} />
 										</span>
 									{/if}
 									{#if col.isForeignKey}
 										<span class="fk-icon" title="Foreign Key">
-											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
-												<path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
-											</svg>
+											<Icon name="link" size={12} />
 										</span>
 									{/if}
 									<span class="col-name">{col.name}</span>
 									{#if orderBy === col.name}
-										<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sort-icon">
-											{#if orderDir === 'ASC'}
-												<path d="M12 19V5M5 12l7-7 7 7"/>
-											{:else}
-												<path d="M12 5v14M5 12l7 7 7-7"/>
-											{/if}
-										</svg>
+										<Icon name={orderDir === 'ASC' ? 'arrow-up' : 'arrow-down'} size={12} class="sort-icon" />
 									{/if}
 								</div>
 								<div class="col-type">{col.dataType}</div>
@@ -626,9 +582,7 @@
 					onclick={() => handlePageChange(1)}
 					title="First page"
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>
-					</svg>
+					<Icon name="chevrons-left" size={14} />
 				</button>
 				<button
 					class="btn btn-sm btn-ghost"
@@ -636,9 +590,7 @@
 					onclick={() => handlePageChange(page - 1)}
 					title="Previous page"
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M15 18l-6-6 6-6"/>
-					</svg>
+					<Icon name="chevron-left" size={14} />
 				</button>
 				<span class="page-info">Page {page} of {data.totalPages}</span>
 				<button
@@ -647,9 +599,7 @@
 					onclick={() => handlePageChange(page + 1)}
 					title="Next page"
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M9 18l6-6-6-6"/>
-					</svg>
+					<Icon name="chevron-right" size={14} />
 				</button>
 				<button
 					class="btn btn-sm btn-ghost"
@@ -657,9 +607,7 @@
 					onclick={() => handlePageChange(data!.totalPages)}
 					title="Last page"
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
-					</svg>
+					<Icon name="chevrons-right" size={14} />
 				</button>
 			</div>
 			<div class="page-size">
@@ -699,18 +647,13 @@
 			<div class="modal-header">
 				<h3>Add New Row</h3>
 				<button class="modal-close" onclick={closeAddRowModal}>
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M18 6L6 18M6 6l12 12"/>
-					</svg>
+					<Icon name="x" size={18} />
 				</button>
 			</div>
 			<div class="modal-body">
 				{#if crudError}
 					<div class="modal-error">
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<circle cx="12" cy="12" r="10"/>
-							<path d="M12 8v4M12 16h.01"/>
-						</svg>
+						<Icon name="alert-circle" size={14} />
 						{crudError}
 					</div>
 				{/if}
@@ -740,10 +683,7 @@
 				</button>
 				<button class="btn btn-primary" onclick={addNewRow} disabled={isSaving}>
 					{#if isSaving}
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
-							<path d="M23 4v6h-6M1 20v-6h6"/>
-							<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-						</svg>
+						<Icon name="refresh" size={14} class="spinning" />
 						Inserting...
 					{:else}
 						Insert Row

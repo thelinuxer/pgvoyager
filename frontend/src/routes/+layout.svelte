@@ -2,11 +2,13 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { connections } from '$lib/stores/connections';
+	import { themeId } from '$lib/themes';
 
 	let { children } = $props();
 
 	onMount(() => {
 		connections.load();
+		themeId.initialize();
 	});
 </script>
 

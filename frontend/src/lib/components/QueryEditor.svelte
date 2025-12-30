@@ -9,6 +9,7 @@
 	import { sql, PostgreSQL } from '@codemirror/lang-sql';
 	import { oneDark } from '@codemirror/theme-one-dark';
 	import ResizeHandle from './ResizeHandle.svelte';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
 		tab: Tab;
@@ -156,15 +157,10 @@
 				disabled={isExecuting || !query.trim()}
 			>
 				{#if isExecuting}
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
-						<path d="M23 4v6h-6M1 20v-6h6"/>
-						<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-					</svg>
+					<Icon name="refresh" size={14} class="spinning" />
 					Running...
 				{:else}
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-						<polygon points="5 3 19 12 5 21 5 3"/>
-					</svg>
+					<Icon name="play" size={14} />
 					Run (Ctrl+Enter)
 				{/if}
 			</button>
@@ -174,11 +170,7 @@
 				disabled={!query.trim()}
 				title="Save Query (Ctrl+S)"
 			>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-					<polyline points="17 21 17 13 7 13 7 21"/>
-					<polyline points="7 3 7 8 15 8"/>
-				</svg>
+				<Icon name="save" size={14} />
 				Save
 			</button>
 			{#if executionTime !== null}
@@ -215,11 +207,7 @@
 			<div class="results-header">
 				<span>{result.rowCount} row{result.rowCount !== 1 ? 's' : ''} returned</span>
 				<button class="btn btn-sm btn-ghost" onclick={exportToCsv} title="Export to CSV">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-						<polyline points="7 10 12 15 17 10"/>
-						<line x1="12" y1="15" x2="12" y2="3"/>
-					</svg>
+					<Icon name="download" size={14} />
 					Export CSV
 				</button>
 			</div>

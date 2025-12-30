@@ -7,6 +7,7 @@
 	import QueryHistoryPanel from '$lib/components/QueryHistoryPanel.svelte';
 	import SavedQueriesPanel from '$lib/components/SavedQueriesPanel.svelte';
 	import SaveQueryModal from '$lib/components/SaveQueryModal.svelte';
+	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import ResizeHandle from '$lib/components/ResizeHandle.svelte';
 	import { activeConnection } from '$lib/stores/connections';
 	import { layout } from '$lib/stores/layout';
@@ -16,6 +17,7 @@
 	let showHistoryPanel = $state(false);
 	let showSavedQueriesPanel = $state(false);
 	let showSaveQueryModal = $state(false);
+	let showSettingsModal = $state(false);
 	let saveQuerySql = $state('');
 	let editSavedQuery = $state<SavedQuery | null>(null);
 	let editConnection = $state<Connection | null>(null);
@@ -71,12 +73,20 @@
 		editSavedQuery = null;
 	}
 
+	function handleSettings() {
+		showSettingsModal = true;
+	}
+
+	function handleCloseSettings() {
+		showSettingsModal = false;
+	}
+
 	function handleSidebarResize(delta: number) {
 		layout.setSidebarWidth($layout.sidebarWidth + delta);
 	}
 </script>
 
-<Header onNewConnection={handleNewConnection} onEditConnection={handleEditConnection} />
+<Header onNewConnection={handleNewConnection} onEditConnection={handleEditConnection} onSettings={handleSettings} />
 
 <div class="main-layout">
 	<Sidebar
@@ -119,6 +129,10 @@
 
 {#if showSaveQueryModal}
 	<SaveQueryModal sql={saveQuerySql} editQuery={editSavedQuery} onClose={handleCloseSaveQueryModal} />
+{/if}
+
+{#if showSettingsModal}
+	<SettingsModal onClose={handleCloseSettings} />
 {/if}
 
 <style>

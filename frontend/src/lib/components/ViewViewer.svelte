@@ -3,6 +3,7 @@
 	import { activeConnectionId } from '$lib/stores/connections';
 	import { schemaApi, dataApi } from '$lib/api/client';
 	import type { Tab, View, TableDataResponse } from '$lib/types';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
 		tab: Tab;
@@ -67,10 +68,7 @@
 	<div class="toolbar">
 		<div class="toolbar-left">
 			<div class="breadcrumb">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-					<circle cx="12" cy="12" r="3"/>
-				</svg>
+				<Icon name="eye" size={14} />
 				<span class="view-name">{tab.schema}.{tab.view}</span>
 			</div>
 			{#if data}
@@ -95,10 +93,7 @@
 		</div>
 		<div class="toolbar-right">
 			<button class="btn btn-sm btn-ghost" onclick={loadView} disabled={isLoading}>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class:spinning={isLoading}>
-					<path d="M23 4v6h-6M1 20v-6h6"/>
-					<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-				</svg>
+				<Icon name="refresh" size={14} class={isLoading ? 'spinning' : ''} />
 				Refresh
 			</button>
 		</div>
@@ -152,9 +147,7 @@
 					onclick={() => handlePageChange(page - 1)}
 					title="Previous page"
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M15 18l-6-6 6-6"/>
-					</svg>
+					<Icon name="chevron-left" size={14} />
 				</button>
 				<span class="page-info">Page {page} of {data.totalPages}</span>
 				<button
@@ -163,9 +156,7 @@
 					onclick={() => handlePageChange(page + 1)}
 					title="Next page"
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M9 18l6-6-6-6"/>
-					</svg>
+					<Icon name="chevron-right" size={14} />
 				</button>
 			</div>
 		</div>

@@ -2,6 +2,7 @@
 	import { connections, activeConnectionId } from '$lib/stores/connections';
 	import { connectionApi } from '$lib/api/client';
 	import type { Connection, ConnectionRequest } from '$lib/types';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
 		onClose: () => void;
@@ -126,17 +127,11 @@
 	<div class="modal">
 		<div class="modal-header">
 			<h2>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M12 2L2 7l10 5 10-5-10-5z"/>
-					<path d="M2 17l10 5 10-5"/>
-					<path d="M2 12l10 5 10-5"/>
-				</svg>
+				<Icon name="layers" size={18} />
 				{isEditMode ? 'Edit Connection' : 'New Connection'}
 			</h2>
 			<button class="modal-close" onclick={onClose} title="Close">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M18 6L6 18M6 6l12 12"/>
-				</svg>
+				<Icon name="x" size={18} />
 			</button>
 		</div>
 
@@ -217,13 +212,9 @@
 			{#if testResult}
 				<div class="test-result" class:success={testResult.success} class:error={!testResult.success}>
 					{#if testResult.success}
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-							<path d="M20 6L9 17l-5-5"/>
-						</svg>
+						<Icon name="check" size={14} strokeWidth={3} />
 					{:else}
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-							<path d="M18 6L6 18M6 6l12 12"/>
-						</svg>
+						<Icon name="x" size={14} strokeWidth={3} />
 					{/if}
 					{testResult.message}
 				</div>

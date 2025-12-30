@@ -4,6 +4,7 @@
 	import { activeConnectionId, connections } from '$lib/stores/connections';
 	import { tabs } from '$lib/stores/tabs';
 	import type { SavedQuery } from '$lib/types';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
 		onClose: () => void;
@@ -104,26 +105,17 @@
 	<div class="panel">
 		<div class="panel-header">
 			<h2>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-					<polyline points="17 21 17 13 7 13 7 21"/>
-					<polyline points="7 3 7 8 15 8"/>
-				</svg>
+				<Icon name="save" size={18} />
 				Saved Queries
 			</h2>
 			<button class="panel-close" onclick={onClose} title="Close">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M18 6L6 18M6 6l12 12"/>
-				</svg>
+				<Icon name="x" size={18} />
 			</button>
 		</div>
 
 		<div class="panel-toolbar">
 			<div class="search-wrapper">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="11" cy="11" r="8"/>
-					<path d="M21 21l-4.35-4.35"/>
-				</svg>
+				<Icon name="search" size={14} />
 				<input
 					type="text"
 					placeholder="Search saved queries..."
@@ -152,19 +144,12 @@
 		<div class="panel-content">
 			{#if isLoading}
 				<div class="empty-state">
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
-						<path d="M23 4v6h-6M1 20v-6h6"/>
-						<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-					</svg>
+					<Icon name="refresh" size={20} class="spinning" />
 					Loading...
 				</div>
 			{:else if filteredQueries.length === 0}
 				<div class="empty-state">
-					<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-						<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-						<polyline points="17 21 17 13 7 13 7 21"/>
-						<polyline points="7 3 7 8 15 8"/>
-					</svg>
+					<Icon name="save" size={32} strokeWidth={1.5} />
 					<p>No saved queries</p>
 					<span class="hint">Save queries from the query editor (Ctrl+S)</span>
 				</div>
@@ -200,20 +185,14 @@
 									onclick={(e) => handleEdit(e, query)}
 									title="Edit"
 								>
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-										<path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-									</svg>
+									<Icon name="edit" size={14} />
 								</button>
 								<button
 									class="action-btn danger"
 									onclick={(e) => handleDelete(e, query)}
 									title="Delete"
 								>
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<polyline points="3 6 5 6 21 6"/>
-										<path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-									</svg>
+									<Icon name="trash" size={14} />
 								</button>
 							</div>
 						</div>

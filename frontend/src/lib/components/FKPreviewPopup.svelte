@@ -6,9 +6,11 @@
 		loading: boolean;
 		x: number;
 		y: number;
+		onMouseEnter?: () => void;
+		onMouseLeave?: () => void;
 	}
 
-	let { preview, loading, x, y }: Props = $props();
+	let { preview, loading, x, y, onMouseEnter, onMouseLeave }: Props = $props();
 
 	// Position the popup to avoid going off-screen
 	let adjustedX = $derived(Math.min(x + 10, window.innerWidth - 400));
@@ -24,7 +26,12 @@
 	}
 </script>
 
-<div class="fk-popup" style="left: {adjustedX}px; top: {adjustedY}px">
+<div
+	class="fk-popup"
+	style="left: {adjustedX}px; top: {adjustedY}px"
+	onmouseenter={onMouseEnter}
+	onmouseleave={onMouseLeave}
+>
 	{#if loading}
 		<div class="fk-loading">Loading...</div>
 	{:else if preview}

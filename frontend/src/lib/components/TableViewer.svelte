@@ -40,6 +40,7 @@
 	let fkPreviewPosition = $state({ x: 0, y: 0 });
 	let fkPreviewLoading = $state(false);
 	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// Navigation state
 	let canGoBack = $derived(tabs.canNavigateBack(tab.id));
@@ -154,9 +155,13 @@
 	async function handleFKHover(e: MouseEvent, col: ColumnInfo, value: unknown) {
 		if (!col.fkReference || value === null || !$activeConnectionId) return;
 
-		// Clear any existing timeout
+		// Clear any existing timeouts
 		if (hoverTimeout) {
 			clearTimeout(hoverTimeout);
+		}
+		if (closeTimeout) {
+			clearTimeout(closeTimeout);
+			closeTimeout = null;
 		}
 
 		// Set position
@@ -187,6 +192,23 @@
 			clearTimeout(hoverTimeout);
 			hoverTimeout = null;
 		}
+		// Delay closing to allow mouse to move to popup
+		closeTimeout = setTimeout(() => {
+			fkPreview = null;
+			fkPreviewLoading = false;
+		}, 150);
+	}
+
+	function handlePopupEnter() {
+		// Cancel close when mouse enters popup
+		if (closeTimeout) {
+			clearTimeout(closeTimeout);
+			closeTimeout = null;
+		}
+	}
+
+	function handlePopupLeave() {
+		// Close popup when mouse leaves it
 		fkPreview = null;
 		fkPreviewLoading = false;
 	}
@@ -666,6 +688,8 @@
 		loading={fkPreviewLoading}
 		x={fkPreviewPosition.x}
 		y={fkPreviewPosition.y}
+		onMouseEnter={handlePopupEnter}
+		onMouseLeave={handlePopupLeave}
 	/>
 {/if}
 

@@ -4,11 +4,15 @@ import { browser } from '$app/environment';
 export interface LayoutState {
 	sidebarWidth: number;
 	queryEditorHeight: number; // percentage
+	claudeTerminalWidth: number; // pixels - right panel
+	claudeTerminalVisible: boolean;
 }
 
 const DEFAULT_LAYOUT: LayoutState = {
 	sidebarWidth: 280,
-	queryEditorHeight: 40 // 40%
+	queryEditorHeight: 40, // 40%
+	claudeTerminalWidth: 500,
+	claudeTerminalVisible: false
 };
 
 const STORAGE_KEY = 'pgvoyager-layout';
@@ -55,6 +59,30 @@ function createLayoutStore() {
 		setQueryEditorHeight: (height: number) => {
 			update((state) => {
 				const newState = { ...state, queryEditorHeight: Math.max(20, Math.min(80, height)) };
+				saveLayout(newState);
+				return newState;
+			});
+		},
+
+		setClaudeTerminalWidth: (width: number) => {
+			update((state) => {
+				const newState = { ...state, claudeTerminalWidth: Math.max(300, Math.min(800, width)) };
+				saveLayout(newState);
+				return newState;
+			});
+		},
+
+		setClaudeTerminalVisible: (visible: boolean) => {
+			update((state) => {
+				const newState = { ...state, claudeTerminalVisible: visible };
+				saveLayout(newState);
+				return newState;
+			});
+		},
+
+		toggleClaudeTerminal: () => {
+			update((state) => {
+				const newState = { ...state, claudeTerminalVisible: !state.claudeTerminalVisible };
 				saveLayout(newState);
 				return newState;
 			});

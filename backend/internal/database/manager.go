@@ -113,6 +113,19 @@ func (m *ConnectionManager) Get(id string) (*models.Connection, error) {
 	return &connCopy, nil
 }
 
+// GetWithPassword retrieves a connection including the password (for internal use only)
+func (m *ConnectionManager) GetWithPassword(id string) (*models.Connection, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	conn, ok := m.connections[id]
+	if !ok {
+		return nil, fmt.Errorf("connection not found: %s", id)
+	}
+	connCopy := *conn
+	return &connCopy, nil
+}
+
 func (m *ConnectionManager) Create(req *models.ConnectionRequest) (*models.Connection, error) {
 	conn := &models.Connection{
 		ID:        uuid.New().String(),

@@ -66,5 +66,33 @@ func RegisterRoutes(r *gin.Engine) {
 			queries.PUT("/:id", handlers.UpdateSavedQuery)
 			queries.DELETE("/:id", handlers.DeleteSavedQuery)
 		}
+
+		// Claude Code terminal
+		claude := api.Group("/claude")
+		{
+			claude.POST("/sessions", handlers.CreateClaudeSession)
+			claude.DELETE("/sessions/:id", handlers.DestroyClaudeSession)
+			claude.GET("/terminal/:id", handlers.ClaudeTerminalWebSocket)
+			claude.PUT("/sessions/:id/connection", handlers.UpdateClaudeSessionConnection)
+		}
+
+		// MCP API (called by MCP server, uses X-Claude-Session-ID header)
+		mcp := api.Group("/mcp")
+		{
+			mcp.GET("/connection", handlers.MCPGetConnectionInfo)
+			mcp.GET("/schemas", handlers.MCPListSchemas)
+			mcp.GET("/tables", handlers.MCPListTables)
+			mcp.GET("/tables/:schema/:table", handlers.MCPGetTableInfo)
+			mcp.GET("/tables/:schema/:table/columns", handlers.MCPGetColumns)
+			mcp.GET("/tables/:schema/:table/foreign-keys", handlers.MCPGetForeignKeys)
+			mcp.GET("/tables/:schema/:table/indexes", handlers.MCPGetIndexes)
+			mcp.POST("/query", handlers.MCPExecuteQuery)
+			mcp.GET("/views", handlers.MCPListViews)
+			mcp.GET("/functions", handlers.MCPListFunctions)
+			// Editor integration
+			mcp.GET("/editor", handlers.MCPGetEditorContent)
+			mcp.POST("/editor/insert", handlers.MCPInsertToEditor)
+			mcp.POST("/editor/replace", handlers.MCPReplaceEditorContent)
+		}
 	}
 }

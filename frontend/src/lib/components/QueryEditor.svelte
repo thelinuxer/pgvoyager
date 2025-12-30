@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { activeConnectionId, activeConnection } from '$lib/stores/connections';
 	import { queryApi } from '$lib/api/client';
 	import { layout } from '$lib/stores/layout';
 	import { queryHistory } from '$lib/stores/queryHistory';
 	import { tables, views, functions, allColumns } from '$lib/stores/schema';
+	import { editorStore } from '$lib/stores/editor';
 	import type { Tab, QueryResult } from '$lib/types';
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { sql, PostgreSQL } from '@codemirror/lang-sql';
@@ -50,6 +51,7 @@
 	});
 
 	let editorView: EditorView | null = null;
+	let unsubscribeEditorActions: (() => void) | null = null;
 
 	interface Props {
 		tab: Tab;
@@ -63,6 +65,47 @@
 	let isExecuting = $state(false);
 	let executionTime = $state<number | null>(null);
 	let containerEl: HTMLDivElement;
+
+	// Sync query changes to the editor store for Claude to access
+	$effect(() => {
+		editorStore.setContent(query);
+	});
+
+	// Subscribe to pending actions from Claude
+	onMount(() => {
+		unsubscribeEditorActions = editorStore.subscribeToPendingActions((action) => {
+			if (action && editorView) {
+				if (action.action === 'replace') {
+					// Replace entire content
+					query = action.text;
+				} else if (action.action === 'insert') {
+					// Insert at position or append
+					if (action.position) {
+						const doc = editorView.state.doc;
+						const lines = doc.toJSON();
+						let offset = 0;
+						for (let i = 0; i < action.position.line && i < lines.length; i++) {
+							offset += lines[i].length + 1;
+						}
+						offset += Math.min(action.position.column, lines[action.position.line]?.length || 0);
+
+						const before = query.slice(0, offset);
+						const after = query.slice(offset);
+						query = before + action.text + after;
+					} else {
+						// Append to end
+						query = query ? query + '\n' + action.text : action.text;
+					}
+				}
+			}
+		});
+	});
+
+	onDestroy(() => {
+		if (unsubscribeEditorActions) {
+			unsubscribeEditorActions();
+		}
+	});
 
 	// Build reactive extensions with autocomplete based on schema data
 	const extensions = $derived.by(() => {

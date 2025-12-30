@@ -28,6 +28,8 @@ install:
 build:
 	@echo "Building backend..."
 	cd backend && go build -o ../bin/pgvoyager ./cmd/server
+	@echo "Building MCP server..."
+	cd backend && go build -o ../bin/pgvoyager-mcp ./cmd/mcp
 	@echo "Building frontend..."
 	cd frontend && npm run build
 
@@ -48,6 +50,10 @@ run-frontend:
 # Build backend binary
 build-backend:
 	cd backend && go build -o ../bin/pgvoyager ./cmd/server
+
+# Build MCP server binary
+build-mcp:
+	cd backend && go build -o ../bin/pgvoyager-mcp ./cmd/mcp
 
 # Build frontend for production
 build-frontend:

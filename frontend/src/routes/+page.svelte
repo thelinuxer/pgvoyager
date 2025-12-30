@@ -8,10 +8,12 @@
 	import SavedQueriesPanel from '$lib/components/SavedQueriesPanel.svelte';
 	import SaveQueryModal from '$lib/components/SaveQueryModal.svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
+	import ClaudeTerminalPanel from '$lib/components/ClaudeTerminalPanel.svelte';
 	import ResizeHandle from '$lib/components/ResizeHandle.svelte';
 	import { activeConnection } from '$lib/stores/connections';
 	import { layout } from '$lib/stores/layout';
 	import type { Connection, SavedQuery } from '$lib/types';
+	import { onMount } from 'svelte';
 
 	let showConnectionModal = $state(false);
 	let showHistoryPanel = $state(false);
@@ -84,9 +86,31 @@
 	function handleSidebarResize(delta: number) {
 		layout.setSidebarWidth($layout.sidebarWidth + delta);
 	}
+
+	function handleToggleClaude() {
+		layout.toggleClaudeTerminal();
+	}
+
+	// Global keyboard shortcut for Claude terminal (Ctrl+`)
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.ctrlKey && e.key === '`') {
+			e.preventDefault();
+			layout.toggleClaudeTerminal();
+		}
+	}
+
+	onMount(() => {
+		window.addEventListener('keydown', handleKeydown);
+		return () => window.removeEventListener('keydown', handleKeydown);
+	});
 </script>
 
-<Header onNewConnection={handleNewConnection} onEditConnection={handleEditConnection} onSettings={handleSettings} />
+<Header
+	onNewConnection={handleNewConnection}
+	onEditConnection={handleEditConnection}
+	onSettings={handleSettings}
+	onToggleClaude={handleToggleClaude}
+/>
 
 <div class="main-layout">
 	<Sidebar
@@ -98,19 +122,25 @@
 	<ResizeHandle direction="horizontal" onResize={handleSidebarResize} />
 
 	<div class="content-wrapper">
-		{#if $activeConnection}
-			<TabBar />
-			<ContentArea onSaveQuery={handleSaveQuery} />
-		{:else}
-			<div class="welcome">
-				<div class="welcome-content">
-					<h1>🚀 PgVoyager</h1>
-					<p>Navigate your PostgreSQL databases with ease</p>
-					<button class="btn btn-primary" onclick={handleNewConnection}>
-						+ New Connection
-					</button>
+		<div class="content-main">
+			{#if $activeConnection}
+				<TabBar />
+				<ContentArea onSaveQuery={handleSaveQuery} />
+			{:else}
+				<div class="welcome">
+					<div class="welcome-content">
+						<h1>PgVoyager</h1>
+						<p>Navigate your PostgreSQL databases with ease</p>
+						<button class="btn btn-primary" onclick={handleNewConnection}>
+							+ New Connection
+						</button>
+					</div>
 				</div>
-			</div>
+			{/if}
+		</div>
+
+		{#if $layout.claudeTerminalVisible && $activeConnection}
+			<ClaudeTerminalPanel />
 		{/if}
 	</div>
 </div>
@@ -145,9 +175,16 @@
 	.content-wrapper {
 		flex: 1;
 		display: flex;
-		flex-direction: column;
+		flex-direction: row;
 		overflow: hidden;
 		background: var(--color-bg);
+	}
+
+	.content-main {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
 	}
 
 	.welcome {

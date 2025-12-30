@@ -8,9 +8,10 @@
 		onNewConnection: () => void;
 		onEditConnection: () => void;
 		onSettings: () => void;
+		onToggleClaude?: () => void;
 	}
 
-	let { onNewConnection, onEditConnection, onSettings }: Props = $props();
+	let { onNewConnection, onEditConnection, onSettings, onToggleClaude }: Props = $props();
 
 	let isConnecting = $state(false);
 	let connectionError = $state<string | null>(null);
@@ -107,6 +108,18 @@
 	</div>
 
 	<div class="header-right">
+		{#if $activeConnection && onToggleClaude}
+			<button
+				class="btn btn-sm"
+				class:btn-ghost={!$layout.claudeTerminalVisible}
+				class:btn-primary={$layout.claudeTerminalVisible}
+				onclick={onToggleClaude}
+				title="Claude Assistant (Ctrl+`)"
+			>
+				<Icon name="terminal" size={14} />
+				Claude
+			</button>
+		{/if}
 		<button class="btn btn-sm btn-ghost" onclick={onSettings} title="Settings">
 			<Icon name="settings" size={14} />
 		</button>

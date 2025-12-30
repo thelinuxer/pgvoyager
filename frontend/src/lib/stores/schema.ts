@@ -1,7 +1,8 @@
-import { writable, derived } from 'svelte/store';
-import type { Schema, Table, View, Function, Sequence, CustomType, SchemaTreeNode } from '$lib/types';
+import { writable, derived, get } from 'svelte/store';
+import type { Schema, Table, View, Function, Sequence, CustomType, SchemaTreeNode, Column } from '$lib/types';
 import { schemaApi } from '$lib/api/client';
 import { activeConnectionId } from './connections';
+import type { ColumnInfo } from '$lib/utils/sqlAutocomplete';
 
 export const schemas = writable<Schema[]>([]);
 export const tables = writable<Table[]>([]);
@@ -13,6 +14,55 @@ export const isLoading = writable(false);
 export const error = writable<string | null>(null);
 
 export const expandedNodes = writable<Set<string>>(new Set());
+
+// Store for caching table columns (key: "schema.table")
+export const tableColumns = writable<Map<string, Column[]>>(new Map());
+
+// Derived store that flattens all columns for autocomplete
+export const allColumns = derived(tableColumns, ($tableColumns): ColumnInfo[] => {
+	const result: ColumnInfo[] = [];
+	for (const [key, columns] of $tableColumns.entries()) {
+		const [schema, tableName] = key.split('.');
+		for (const col of columns) {
+			result.push({
+				name: col.name,
+				tableName,
+				schema,
+				dataType: col.dataType
+			});
+		}
+	}
+	return result;
+});
+
+// Load columns for a specific table and cache them
+export async function loadTableColumns(connId: string, schema: string, table: string): Promise<Column[]> {
+	const key = `${schema}.${table}`;
+	const cached = get(tableColumns).get(key);
+	if (cached) {
+		return cached;
+	}
+
+	try {
+		const columns = await schemaApi.getTableColumns(connId, schema, table);
+		tableColumns.update((map) => {
+			const newMap = new Map(map);
+			newMap.set(key, columns);
+			return newMap;
+		});
+		return columns;
+	} catch (e) {
+		console.error(`Failed to load columns for ${key}:`, e);
+		return [];
+	}
+}
+
+// Preload columns for all tables (for autocomplete)
+export async function preloadAllColumns(connId: string): Promise<void> {
+	const tableList = get(tables);
+	const promises = tableList.map((t) => loadTableColumns(connId, t.schema, t.name));
+	await Promise.all(promises);
+}
 
 export async function loadSchema(connId: string) {
 	isLoading.set(true);
@@ -35,6 +85,11 @@ export async function loadSchema(connId: string) {
 		functions.set(functionList || []);
 		sequences.set(sequenceList || []);
 		customTypes.set(typeList || []);
+
+		// Preload columns for autocomplete (in background, don't block)
+		preloadAllColumns(connId).catch((e) => {
+			console.error('Failed to preload columns for autocomplete:', e);
+		});
 	} catch (e) {
 		error.set(e instanceof Error ? e.message : 'Failed to load schema');
 	} finally {
@@ -49,6 +104,7 @@ export function clearSchema() {
 	functions.set([]);
 	sequences.set([]);
 	customTypes.set([]);
+	tableColumns.set(new Map());
 	expandedNodes.set(new Set());
 }
 

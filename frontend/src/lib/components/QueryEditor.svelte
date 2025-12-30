@@ -4,10 +4,13 @@
 	import { queryApi } from '$lib/api/client';
 	import { layout } from '$lib/stores/layout';
 	import { queryHistory } from '$lib/stores/queryHistory';
+	import { tables, views, functions, allColumns } from '$lib/stores/schema';
 	import type { Tab, QueryResult } from '$lib/types';
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { sql, PostgreSQL } from '@codemirror/lang-sql';
 	import { oneDark } from '@codemirror/theme-one-dark';
+	import { autocompletion } from '@codemirror/autocomplete';
+	import { createSchemaCompletionSource } from '$lib/utils/sqlAutocomplete';
 	import ResizeHandle from './ResizeHandle.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
 
@@ -24,7 +27,27 @@
 	let executionTime = $state<number | null>(null);
 	let containerEl: HTMLDivElement;
 
-	const extensions = [sql({ dialect: PostgreSQL }), oneDark];
+	// Build reactive extensions with autocomplete based on schema data
+	const extensions = $derived.by(() => {
+		const schemaData = {
+			tables: $tables || [],
+			views: $views || [],
+			functions: $functions || [],
+			columns: $allColumns || []
+		};
+
+		const completionSource = createSchemaCompletionSource(schemaData);
+
+		return [
+			sql({ dialect: PostgreSQL }),
+			oneDark,
+			autocompletion({
+				override: [completionSource],
+				activateOnTyping: true,
+				maxRenderedOptions: 50
+			})
+		];
+	});
 
 	// Update query if tab changes with new initialSql
 	$effect(() => {

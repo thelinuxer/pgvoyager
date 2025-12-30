@@ -44,6 +44,10 @@ func RegisterRoutes(r *gin.Engine) {
 			data.GET("/tables/:schema/:table", handlers.GetTableData)
 			data.GET("/tables/:schema/:table/count", handlers.GetTableRowCount)
 			data.GET("/fk-preview/:schema/:table/:column/:value", handlers.GetForeignKeyPreview)
+			// CRUD operations
+			data.POST("/tables/:schema/:table/rows", handlers.InsertRow)
+			data.PUT("/tables/:schema/:table/rows", handlers.UpdateRow)
+			data.DELETE("/tables/:schema/:table/rows", handlers.DeleteRow)
 		}
 
 		// Query execution
@@ -51,6 +55,16 @@ func RegisterRoutes(r *gin.Engine) {
 		{
 			query.POST("/execute", handlers.ExecuteQuery)
 			query.POST("/explain", handlers.ExplainQuery)
+		}
+
+		// Saved queries
+		queries := api.Group("/queries")
+		{
+			queries.GET("", handlers.ListSavedQueries)
+			queries.POST("", handlers.CreateSavedQuery)
+			queries.GET("/:id", handlers.GetSavedQuery)
+			queries.PUT("/:id", handlers.UpdateSavedQuery)
+			queries.DELETE("/:id", handlers.DeleteSavedQuery)
 		}
 	}
 }

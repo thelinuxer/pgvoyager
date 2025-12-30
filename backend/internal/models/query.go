@@ -46,6 +46,27 @@ type ForeignKeyPreview struct {
 }
 
 type ExplainResult struct {
-	Plan      string  `json:"plan"`
-	Duration  float64 `json:"duration"`
+	Plan     string  `json:"plan"`
+	Duration float64 `json:"duration"`
+}
+
+// CRUD operations
+type InsertRowRequest struct {
+	Data map[string]any `json:"data" binding:"required"`
+}
+
+type UpdateRowRequest struct {
+	PrimaryKey map[string]any `json:"primaryKey" binding:"required"`
+	Data       map[string]any `json:"data" binding:"required"`
+}
+
+type DeleteRowRequest struct {
+	PrimaryKey map[string]any `json:"primaryKey" binding:"required"`
+}
+
+type CrudResponse struct {
+	Success      bool           `json:"success"`
+	RowsAffected int64          `json:"rowsAffected"`
+	Message      string         `json:"message,omitempty"`
+	InsertedRow  map[string]any `json:"insertedRow,omitempty"`
 }

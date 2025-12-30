@@ -163,6 +163,44 @@ export interface QueryResult {
 	error?: string;
 }
 
+export interface SavedQuery {
+	id: string;
+	name: string;
+	sql: string;
+	connectionId?: string;
+	description?: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface SavedQueryRequest {
+	name: string;
+	sql: string;
+	connectionId?: string;
+	description?: string;
+}
+
+// CRUD operations
+export interface InsertRowRequest {
+	data: Record<string, unknown>;
+}
+
+export interface UpdateRowRequest {
+	primaryKey: Record<string, unknown>;
+	data: Record<string, unknown>;
+}
+
+export interface DeleteRowRequest {
+	primaryKey: Record<string, unknown>;
+}
+
+export interface CrudResponse {
+	success: boolean;
+	rowsAffected: number;
+	message?: string;
+	insertedRow?: Record<string, unknown>;
+}
+
 export type TabType = 'table' | 'query' | 'view' | 'function' | 'sequence' | 'type';
 
 export interface TableLocation {

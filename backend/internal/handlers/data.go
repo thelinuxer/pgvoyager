@@ -111,8 +111,8 @@ func GetTableData(c *gin.Context) {
 	// Get field descriptions
 	fieldDescs := rows.FieldDescriptions()
 
-	// Scan rows
-	var data []map[string]any
+	// Scan rows - initialize to empty slice to avoid null in JSON
+	data := []map[string]any{}
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
@@ -413,5 +413,249 @@ func ExplainQuery(c *gin.Context) {
 	c.JSON(http.StatusOK, models.ExplainResult{
 		Plan:     strings.Join(planLines, "\n"),
 		Duration: duration,
+	})
+}
+
+func InsertRow(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	schema := c.Param("schema")
+	table := c.Param("table")
+
+	if !isValidIdentifier(schema) || !isValidIdentifier(table) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid schema or table name"})
+		return
+	}
+
+	var req models.InsertRowRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(req.Data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No data provided"})
+		return
+	}
+
+	// Build INSERT query
+	columns := make([]string, 0, len(req.Data))
+	placeholders := make([]string, 0, len(req.Data))
+	values := make([]any, 0, len(req.Data))
+	i := 1
+
+	for col, val := range req.Data {
+		if !isValidIdentifier(col) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid column name: %s", col)})
+			return
+		}
+		columns = append(columns, quoteIdentifier(col))
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i))
+		values = append(values, val)
+		i++
+	}
+
+	query := fmt.Sprintf(
+		"INSERT INTO %s.%s (%s) VALUES (%s) RETURNING *",
+		quoteIdentifier(schema),
+		quoteIdentifier(table),
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "),
+	)
+
+	rows, err := pool.Query(ctx, query, values...)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Insert succeeded but no row returned"})
+		return
+	}
+
+	rowValues, err := rows.Values()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	fieldDescs := rows.FieldDescriptions()
+	insertedRow := make(map[string]any)
+	for i, fd := range fieldDescs {
+		insertedRow[string(fd.Name)] = rowValues[i]
+	}
+
+	c.JSON(http.StatusCreated, models.CrudResponse{
+		Success:      true,
+		RowsAffected: 1,
+		Message:      "Row inserted successfully",
+		InsertedRow:  insertedRow,
+	})
+}
+
+func UpdateRow(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	schema := c.Param("schema")
+	table := c.Param("table")
+
+	if !isValidIdentifier(schema) || !isValidIdentifier(table) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid schema or table name"})
+		return
+	}
+
+	var req models.UpdateRowRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(req.PrimaryKey) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Primary key required"})
+		return
+	}
+
+	if len(req.Data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No data to update"})
+		return
+	}
+
+	// Build SET clause
+	setClauses := make([]string, 0, len(req.Data))
+	values := make([]any, 0)
+	paramNum := 1
+
+	for col, val := range req.Data {
+		if !isValidIdentifier(col) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid column name: %s", col)})
+			return
+		}
+		setClauses = append(setClauses, fmt.Sprintf("%s = $%d", quoteIdentifier(col), paramNum))
+		values = append(values, val)
+		paramNum++
+	}
+
+	// Build WHERE clause from primary key
+	whereClauses := make([]string, 0, len(req.PrimaryKey))
+	for col, val := range req.PrimaryKey {
+		if !isValidIdentifier(col) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid primary key column: %s", col)})
+			return
+		}
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", quoteIdentifier(col), paramNum))
+		values = append(values, val)
+		paramNum++
+	}
+
+	query := fmt.Sprintf(
+		"UPDATE %s.%s SET %s WHERE %s",
+		quoteIdentifier(schema),
+		quoteIdentifier(table),
+		strings.Join(setClauses, ", "),
+		strings.Join(whereClauses, " AND "),
+	)
+
+	result, err := pool.Exec(ctx, query, values...)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No row found with the specified primary key"})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.CrudResponse{
+		Success:      true,
+		RowsAffected: rowsAffected,
+		Message:      "Row updated successfully",
+	})
+}
+
+func DeleteRow(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	schema := c.Param("schema")
+	table := c.Param("table")
+
+	if !isValidIdentifier(schema) || !isValidIdentifier(table) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid schema or table name"})
+		return
+	}
+
+	var req models.DeleteRowRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(req.PrimaryKey) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Primary key required"})
+		return
+	}
+
+	// Build WHERE clause from primary key
+	whereClauses := make([]string, 0, len(req.PrimaryKey))
+	values := make([]any, 0)
+	paramNum := 1
+
+	for col, val := range req.PrimaryKey {
+		if !isValidIdentifier(col) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid primary key column: %s", col)})
+			return
+		}
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", quoteIdentifier(col), paramNum))
+		values = append(values, val)
+		paramNum++
+	}
+
+	query := fmt.Sprintf(
+		"DELETE FROM %s.%s WHERE %s",
+		quoteIdentifier(schema),
+		quoteIdentifier(table),
+		strings.Join(whereClauses, " AND "),
+	)
+
+	result, err := pool.Exec(ctx, query, values...)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No row found with the specified primary key"})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.CrudResponse{
+		Success:      true,
+		RowsAffected: rowsAffected,
+		Message:      "Row deleted successfully",
 	})
 }

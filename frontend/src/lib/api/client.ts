@@ -13,7 +13,13 @@ import type {
 	CustomType,
 	TableDataResponse,
 	ForeignKeyPreview,
-	QueryResult
+	QueryResult,
+	SavedQuery,
+	SavedQueryRequest,
+	InsertRowRequest,
+	UpdateRowRequest,
+	DeleteRowRequest,
+	CrudResponse
 } from '$lib/types';
 
 const API_BASE = 'http://localhost:8081/api';
@@ -165,7 +171,26 @@ export const dataApi = {
 	getForeignKeyPreview: (connId: string, schema: string, table: string, column: string, value: string) =>
 		fetchAPI<ForeignKeyPreview>(
 			`/data/${connId}/fk-preview/${schema}/${table}/${column}/${encodeURIComponent(value)}`
-		)
+		),
+
+	// CRUD operations
+	insertRow: (connId: string, schema: string, table: string, data: InsertRowRequest) =>
+		fetchAPI<CrudResponse>(`/data/${connId}/tables/${schema}/${table}/rows`, {
+			method: 'POST',
+			body: JSON.stringify(data)
+		}),
+
+	updateRow: (connId: string, schema: string, table: string, data: UpdateRowRequest) =>
+		fetchAPI<CrudResponse>(`/data/${connId}/tables/${schema}/${table}/rows`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		}),
+
+	deleteRow: (connId: string, schema: string, table: string, data: DeleteRowRequest) =>
+		fetchAPI<CrudResponse>(`/data/${connId}/tables/${schema}/${table}/rows`, {
+			method: 'DELETE',
+			body: JSON.stringify(data)
+		})
 };
 
 // Query API
@@ -180,5 +205,29 @@ export const queryApi = {
 		fetchAPI<{ plan: string; duration: number }>(`/query/${connId}/explain`, {
 			method: 'POST',
 			body: JSON.stringify({ sql, params })
+		})
+};
+
+// Saved Queries API
+export const savedQueryApi = {
+	list: () => fetchAPI<SavedQuery[]>('/queries'),
+
+	get: (id: string) => fetchAPI<SavedQuery>(`/queries/${id}`),
+
+	create: (data: SavedQueryRequest) =>
+		fetchAPI<SavedQuery>('/queries', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		}),
+
+	update: (id: string, data: SavedQueryRequest) =>
+		fetchAPI<SavedQuery>(`/queries/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		}),
+
+	delete: (id: string) =>
+		fetchAPI<void>(`/queries/${id}`, {
+			method: 'DELETE'
 		})
 };

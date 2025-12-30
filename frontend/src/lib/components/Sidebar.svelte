@@ -7,9 +7,11 @@
 	interface Props {
 		width: number;
 		onNewConnection: () => void;
+		onShowHistory: () => void;
+		onShowSavedQueries: () => void;
 	}
 
-	let { width, onNewConnection }: Props = $props();
+	let { width, onNewConnection, onShowHistory, onShowSavedQueries }: Props = $props();
 
 	let searchQuery = $state('');
 
@@ -253,6 +255,19 @@
 			Explorer
 		</span>
 		<div class="sidebar-actions">
+			<button class="btn btn-sm btn-ghost" onclick={onShowSavedQueries} title="Saved Queries">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+					<polyline points="17 21 17 13 7 13 7 21"/>
+					<polyline points="7 3 7 8 15 8"/>
+				</svg>
+			</button>
+			<button class="btn btn-sm btn-ghost" onclick={onShowHistory} title="Query History">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="12" cy="12" r="10"/>
+					<polyline points="12 6 12 12 16 14"/>
+				</svg>
+			</button>
 			<button class="btn btn-sm btn-ghost" onclick={() => tabs.openQuery()} title="New Query">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -339,31 +354,32 @@
 
 <!-- Context Menu -->
 {#if contextMenu}
+	{@const menuNode = contextMenu.node}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="context-menu-backdrop" onclick={closeContextMenu}></div>
 	<div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px">
-		<button class="context-menu-item" onclick={() => handleShowFirst100(contextMenu.node)}>
+		<button class="context-menu-item" onclick={() => handleShowFirst100(menuNode)}>
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M12 19V5M5 12l7-7 7 7"/>
 			</svg>
 			Show first 100 rows
 		</button>
-		<button class="context-menu-item" onclick={() => handleShowLast100(contextMenu.node)}>
+		<button class="context-menu-item" onclick={() => handleShowLast100(menuNode)}>
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M12 5v14M5 12l7 7 7-7"/>
 			</svg>
 			Show last 100 rows
 		</button>
 		<div class="context-menu-separator"></div>
-		<button class="context-menu-item" onclick={() => handleOpenInQuery(contextMenu.node)}>
+		<button class="context-menu-item" onclick={() => handleOpenInQuery(menuNode)}>
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
 				<path d="M14 2v6h6"/>
 			</svg>
 			Open in Query Editor
 		</button>
-		<button class="context-menu-item" onclick={() => handleCopyName(contextMenu.node)}>
+		<button class="context-menu-item" onclick={() => handleCopyName(menuNode)}>
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<rect x="9" y="9" width="13" height="13" rx="2"/>
 				<path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>

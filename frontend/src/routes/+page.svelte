@@ -4,12 +4,20 @@
 	import TabBar from '$lib/components/TabBar.svelte';
 	import ContentArea from '$lib/components/ContentArea.svelte';
 	import ConnectionModal from '$lib/components/ConnectionModal.svelte';
+	import QueryHistoryPanel from '$lib/components/QueryHistoryPanel.svelte';
+	import SavedQueriesPanel from '$lib/components/SavedQueriesPanel.svelte';
+	import SaveQueryModal from '$lib/components/SaveQueryModal.svelte';
 	import ResizeHandle from '$lib/components/ResizeHandle.svelte';
 	import { activeConnection } from '$lib/stores/connections';
 	import { layout } from '$lib/stores/layout';
-	import type { Connection } from '$lib/types';
+	import type { Connection, SavedQuery } from '$lib/types';
 
 	let showConnectionModal = $state(false);
+	let showHistoryPanel = $state(false);
+	let showSavedQueriesPanel = $state(false);
+	let showSaveQueryModal = $state(false);
+	let saveQuerySql = $state('');
+	let editSavedQuery = $state<SavedQuery | null>(null);
 	let editConnection = $state<Connection | null>(null);
 
 	function handleNewConnection() {
@@ -29,6 +37,40 @@
 		editConnection = null;
 	}
 
+	function handleShowHistory() {
+		showHistoryPanel = true;
+	}
+
+	function handleCloseHistory() {
+		showHistoryPanel = false;
+	}
+
+	function handleShowSavedQueries() {
+		showSavedQueriesPanel = true;
+	}
+
+	function handleCloseSavedQueries() {
+		showSavedQueriesPanel = false;
+	}
+
+	function handleSaveQuery(sql: string) {
+		saveQuerySql = sql;
+		editSavedQuery = null;
+		showSaveQueryModal = true;
+	}
+
+	function handleEditSavedQuery(query: SavedQuery) {
+		saveQuerySql = query.sql;
+		editSavedQuery = query;
+		showSavedQueriesPanel = false;
+		showSaveQueryModal = true;
+	}
+
+	function handleCloseSaveQueryModal() {
+		showSaveQueryModal = false;
+		editSavedQuery = null;
+	}
+
 	function handleSidebarResize(delta: number) {
 		layout.setSidebarWidth($layout.sidebarWidth + delta);
 	}
@@ -37,13 +79,18 @@
 <Header onNewConnection={handleNewConnection} onEditConnection={handleEditConnection} />
 
 <div class="main-layout">
-	<Sidebar width={$layout.sidebarWidth} onNewConnection={handleNewConnection} />
+	<Sidebar
+		width={$layout.sidebarWidth}
+		onNewConnection={handleNewConnection}
+		onShowHistory={handleShowHistory}
+		onShowSavedQueries={handleShowSavedQueries}
+	/>
 	<ResizeHandle direction="horizontal" onResize={handleSidebarResize} />
 
 	<div class="content-wrapper">
 		{#if $activeConnection}
 			<TabBar />
-			<ContentArea />
+			<ContentArea onSaveQuery={handleSaveQuery} />
 		{:else}
 			<div class="welcome">
 				<div class="welcome-content">
@@ -60,6 +107,18 @@
 
 {#if showConnectionModal}
 	<ConnectionModal onClose={handleCloseModal} editConnection={editConnection} />
+{/if}
+
+{#if showHistoryPanel}
+	<QueryHistoryPanel onClose={handleCloseHistory} />
+{/if}
+
+{#if showSavedQueriesPanel}
+	<SavedQueriesPanel onClose={handleCloseSavedQueries} onEditQuery={handleEditSavedQuery} />
+{/if}
+
+{#if showSaveQueryModal}
+	<SaveQueryModal sql={saveQuerySql} editQuery={editSavedQuery} onClose={handleCloseSaveQueryModal} />
 {/if}
 
 <style>

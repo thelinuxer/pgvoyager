@@ -6,6 +6,12 @@
 	import FunctionViewer from './FunctionViewer.svelte';
 	import SequenceViewer from './SequenceViewer.svelte';
 	import TypeViewer from './TypeViewer.svelte';
+
+	interface Props {
+		onSaveQuery?: (sql: string) => void;
+	}
+
+	let { onSaveQuery }: Props = $props();
 </script>
 
 <div class="content-area">
@@ -13,7 +19,7 @@
 		{#if $activeTab.type === 'table'}
 			<TableViewer tab={$activeTab} />
 		{:else if $activeTab.type === 'query'}
-			<QueryEditor tab={$activeTab} />
+			<QueryEditor tab={$activeTab} {onSaveQuery} />
 		{:else if $activeTab.type === 'view'}
 			<ViewViewer tab={$activeTab} />
 		{:else if $activeTab.type === 'function'}

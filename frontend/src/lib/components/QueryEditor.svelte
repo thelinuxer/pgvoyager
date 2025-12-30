@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { activeConnectionId } from '$lib/stores/connections';
+	import { activeConnectionId, activeConnection } from '$lib/stores/connections';
 	import { queryApi } from '$lib/api/client';
 	import { layout } from '$lib/stores/layout';
+	import { queryHistory } from '$lib/stores/queryHistory';
 	import type { Tab, QueryResult } from '$lib/types';
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { sql, PostgreSQL } from '@codemirror/lang-sql';
@@ -11,9 +12,10 @@
 
 	interface Props {
 		tab: Tab;
+		onSaveQuery?: (sql: string) => void;
 	}
 
-	let { tab }: Props = $props();
+	let { tab, onSaveQuery }: Props = $props();
 
 	let query = $state(tab.initialSql || 'SELECT * FROM ');
 	let result = $state<QueryResult | null>(null);
@@ -43,18 +45,42 @@
 		isExecuting = true;
 		result = null;
 
+		const startTime = performance.now();
+
 		try {
 			const res = await queryApi.execute($activeConnectionId, query);
 			result = res;
 			executionTime = res.duration;
+
+			// Record successful query in history
+			queryHistory.add({
+				sql: query.trim(),
+				connectionId: $activeConnectionId,
+				connectionName: $activeConnection?.name || 'Unknown',
+				duration: res.duration,
+				rowCount: res.rowCount,
+				success: true
+			});
 		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'Query failed';
 			result = {
 				columns: [],
 				rows: [],
 				rowCount: 0,
 				duration: 0,
-				error: e instanceof Error ? e.message : 'Query failed'
+				error: errorMessage
 			};
+
+			// Record failed query in history
+			queryHistory.add({
+				sql: query.trim(),
+				connectionId: $activeConnectionId,
+				connectionName: $activeConnection?.name || 'Unknown',
+				duration: performance.now() - startTime,
+				rowCount: 0,
+				success: false,
+				error: errorMessage
+			});
 		} finally {
 			isExecuting = false;
 		}
@@ -64,6 +90,15 @@
 		if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
 			e.preventDefault();
 			executeQuery();
+		} else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+			e.preventDefault();
+			handleSave();
+		}
+	}
+
+	function handleSave() {
+		if (query.trim() && onSaveQuery) {
+			onSaveQuery(query);
 		}
 	}
 
@@ -89,10 +124,13 @@
 	function exportToCsv() {
 		if (!result || result.columns.length === 0) return;
 
+		// Store in local const for type narrowing in callbacks
+		const data = result;
+
 		// Build CSV content
-		const headers = result.columns.map(col => formatCsvValue(col.name)).join(',');
-		const rows = result.rows.map(row =>
-			result.columns.map(col => formatCsvValue(row[col.name])).join(',')
+		const headers = data.columns.map(col => formatCsvValue(col.name)).join(',');
+		const rows = data.rows.map(row =>
+			data.columns.map(col => formatCsvValue(row[col.name])).join(',')
 		);
 		const csvContent = [headers, ...rows].join('\n');
 
@@ -129,6 +167,19 @@
 					</svg>
 					Run (Ctrl+Enter)
 				{/if}
+			</button>
+			<button
+				class="btn btn-ghost btn-sm"
+				onclick={handleSave}
+				disabled={!query.trim()}
+				title="Save Query (Ctrl+S)"
+			>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+					<polyline points="17 21 17 13 7 13 7 21"/>
+					<polyline points="7 3 7 8 15 8"/>
+				</svg>
+				Save
 			</button>
 			{#if executionTime !== null}
 				<span class="execution-time">

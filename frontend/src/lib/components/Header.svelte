@@ -120,6 +120,15 @@
 				Claude
 			</button>
 		{/if}
+		<a
+			href="https://github.com/thelinuxer/pgvoyager"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="btn btn-sm btn-ghost"
+			title="View on GitHub"
+		>
+			<Icon name="github" size={14} />
+		</a>
 		<button class="btn btn-sm btn-ghost" onclick={onSettings} title="Settings">
 			<Icon name="settings" size={14} />
 		</button>

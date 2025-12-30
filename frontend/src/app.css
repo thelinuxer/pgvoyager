@@ -92,6 +92,8 @@ input:focus, textarea:focus, select:focus {
 	border-radius: var(--radius-sm);
 	font-weight: 500;
 	transition: all var(--transition-fast);
+	color: var(--color-text);
+	text-decoration: none;
 }
 
 .btn-primary {

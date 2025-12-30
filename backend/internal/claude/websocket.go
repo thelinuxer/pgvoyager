@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -47,8 +48,14 @@ func HandleTerminalWebSocket(c *gin.Context) {
 	session.WSConn = conn
 	session.mu.Unlock()
 
-	// Channel to signal shutdown
+	// Channel to signal shutdown (use sync.Once to prevent double close)
 	done := make(chan struct{})
+	var closeOnce sync.Once
+	closeDone := func() {
+		closeOnce.Do(func() {
+			close(done)
+		})
+	}
 
 	// Read from PTY and send to WebSocket
 	go func() {
@@ -63,7 +70,7 @@ func HandleTerminalWebSocket(c *gin.Context) {
 					if err != io.EOF {
 						log.Printf("PTY read error: %v", err)
 					}
-					close(done)
+					closeDone()
 					return
 				}
 				if n > 0 {
@@ -91,7 +98,7 @@ func HandleTerminalWebSocket(c *gin.Context) {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					log.Printf("WebSocket read error: %v", err)
 				}
-				close(done)
+				closeDone()
 				return
 			}
 

@@ -33,8 +33,14 @@ function createClaudeTerminalStore() {
 
 	let ws: WebSocket | null = null;
 	let terminal: ITerminal | null = null;
+	let destroyingPromise: Promise<void> | null = null;
 
 	async function createSession(connectionId: string): Promise<string | null> {
+		// Wait for any ongoing destroy to complete first
+		if (destroyingPromise) {
+			await destroyingPromise;
+		}
+
 		// Check if we already have a session
 		const currentState = get({ subscribe });
 		if (currentState.sessionId) {
@@ -86,23 +92,30 @@ function createClaudeTerminalStore() {
 		const state = get({ subscribe });
 		if (!state.sessionId) return;
 
-		disconnect();
+		// Track the destroy operation so createSession can wait for it
+		const doDestroy = async () => {
+			disconnect();
 
-		try {
-			await fetch(`http://localhost:8081/api/claude/sessions/${state.sessionId}`, {
-				method: 'DELETE'
+			try {
+				await fetch(`http://localhost:8081/api/claude/sessions/${state.sessionId}`, {
+					method: 'DELETE'
+				});
+			} catch (e) {
+				console.error('Failed to destroy session:', e);
+			}
+
+			set({
+				sessionId: null,
+				connectionId: null,
+				isConnected: false,
+				isConnecting: false,
+				error: null
 			});
-		} catch (e) {
-			console.error('Failed to destroy session:', e);
-		}
+		};
 
-		set({
-			sessionId: null,
-			connectionId: null,
-			isConnected: false,
-			isConnecting: false,
-			error: null
-		});
+		destroyingPromise = doDestroy();
+		await destroyingPromise;
+		destroyingPromise = null;
 	}
 
 	// Update the session's database connection without restarting Claude

@@ -86,8 +86,19 @@
 <div class="modal-backdrop" onclick={handleBackdropClick}>
 	<div class="modal">
 		<div class="modal-header">
-			<h2>New Connection</h2>
-			<button class="modal-close" onclick={onClose}>×</button>
+			<h2>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M12 2L2 7l10 5 10-5-10-5z"/>
+					<path d="M2 17l10 5 10-5"/>
+					<path d="M2 12l10 5 10-5"/>
+				</svg>
+				New Connection
+			</h2>
+			<button class="modal-close" onclick={onClose} title="Close">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M18 6L6 18M6 6l12 12"/>
+				</svg>
+			</button>
 		</div>
 
 		<div class="modal-body">
@@ -166,7 +177,16 @@
 
 			{#if testResult}
 				<div class="test-result" class:success={testResult.success} class:error={!testResult.success}>
-					{testResult.success ? '✓' : '✗'} {testResult.message}
+					{#if testResult.success}
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+							<path d="M20 6L9 17l-5-5"/>
+						</svg>
+					{:else}
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+							<path d="M18 6L6 18M6 6l12 12"/>
+						</svg>
+					{/if}
+					{testResult.message}
 				</div>
 			{/if}
 
@@ -221,19 +241,30 @@
 	}
 
 	.modal-header h2 {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		font-size: 18px;
 		font-weight: 600;
 	}
 
+	.modal-header h2 svg {
+		color: var(--color-primary);
+	}
+
 	.modal-close {
-		font-size: 24px;
-		line-height: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 4px;
+		border-radius: var(--radius-sm);
 		opacity: 0.5;
-		transition: opacity var(--transition-fast);
+		transition: all var(--transition-fast);
 	}
 
 	.modal-close:hover {
 		opacity: 1;
+		background: var(--color-surface);
 	}
 
 	.modal-body {
@@ -272,6 +303,9 @@
 	}
 
 	.test-result {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		padding: 12px;
 		border-radius: var(--radius-sm);
 		margin-top: 16px;

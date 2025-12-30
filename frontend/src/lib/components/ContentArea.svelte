@@ -3,6 +3,9 @@
 	import TableViewer from './TableViewer.svelte';
 	import QueryEditor from './QueryEditor.svelte';
 	import ViewViewer from './ViewViewer.svelte';
+	import FunctionViewer from './FunctionViewer.svelte';
+	import SequenceViewer from './SequenceViewer.svelte';
+	import TypeViewer from './TypeViewer.svelte';
 </script>
 
 <div class="content-area">
@@ -13,6 +16,12 @@
 			<QueryEditor tab={$activeTab} />
 		{:else if $activeTab.type === 'view'}
 			<ViewViewer tab={$activeTab} />
+		{:else if $activeTab.type === 'function'}
+			<FunctionViewer tab={$activeTab} />
+		{:else if $activeTab.type === 'sequence'}
+			<SequenceViewer tab={$activeTab} />
+		{:else if $activeTab.type === 'type'}
+			<TypeViewer tab={$activeTab} />
 		{/if}
 	{:else}
 		<div class="no-tab">

@@ -8,6 +8,9 @@ import type {
 	Index,
 	ForeignKey,
 	View,
+	Function,
+	Sequence,
+	CustomType,
 	TableDataResponse,
 	ForeignKeyPreview,
 	QueryResult
@@ -99,6 +102,21 @@ export const schemaApi = {
 	listViews: (connId: string, schema?: string) => {
 		const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
 		return fetchAPI<View[]>(`/schema/${connId}/views${params}`);
+	},
+
+	listFunctions: (connId: string, schema?: string) => {
+		const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
+		return fetchAPI<Function[]>(`/schema/${connId}/functions${params}`);
+	},
+
+	listSequences: (connId: string, schema?: string) => {
+		const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
+		return fetchAPI<Sequence[]>(`/schema/${connId}/sequences${params}`);
+	},
+
+	listTypes: (connId: string, schema?: string) => {
+		const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';
+		return fetchAPI<CustomType[]>(`/schema/${connId}/types${params}`);
 	}
 };
 
@@ -113,6 +131,8 @@ export const dataApi = {
 			pageSize?: number;
 			orderBy?: string;
 			orderDir?: 'ASC' | 'DESC';
+			filterColumn?: string;
+			filterValue?: string;
 		}
 	) => {
 		const params = new URLSearchParams();
@@ -120,6 +140,8 @@ export const dataApi = {
 		if (options?.pageSize) params.set('pageSize', String(options.pageSize));
 		if (options?.orderBy) params.set('orderBy', options.orderBy);
 		if (options?.orderDir) params.set('orderDir', options.orderDir);
+		if (options?.filterColumn) params.set('filterColumn', options.filterColumn);
+		if (options?.filterValue) params.set('filterValue', options.filterValue);
 
 		const queryString = params.toString();
 		return fetchAPI<TableDataResponse>(

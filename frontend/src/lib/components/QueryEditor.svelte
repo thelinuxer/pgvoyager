@@ -68,7 +68,18 @@
 				onclick={executeQuery}
 				disabled={isExecuting || !query.trim()}
 			>
-				{isExecuting ? '⏳ Running...' : '▶ Run (Ctrl+Enter)'}
+				{#if isExecuting}
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
+						<path d="M23 4v6h-6M1 20v-6h6"/>
+						<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+					</svg>
+					Running...
+				{:else}
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+						<polygon points="5 3 19 12 5 21 5 3"/>
+					</svg>
+					Run (Ctrl+Enter)
+				{/if}
 			</button>
 			{#if executionTime !== null}
 				<span class="execution-time">
@@ -230,5 +241,14 @@
 		font-family: var(--font-mono);
 		font-size: 12px;
 		white-space: pre-wrap;
+	}
+
+	.spinning {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 </style>

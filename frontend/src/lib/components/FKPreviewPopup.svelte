@@ -37,7 +37,11 @@
 					{#each preview.columns as col}
 						<tr>
 							<td class="fk-col-name" class:pk={col.isPrimaryKey}>
-								{#if col.isPrimaryKey}🔑{/if}
+								{#if col.isPrimaryKey}
+									<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" class="pk-icon">
+										<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+									</svg>
+								{/if}
 								{col.name}
 							</td>
 							<td class="fk-col-value" class:null={preview.row[col.name] === null}>
@@ -108,6 +112,11 @@
 
 	.fk-col-name.pk {
 		color: var(--color-warning);
+	}
+
+	.pk-icon {
+		margin-right: 4px;
+		vertical-align: middle;
 	}
 
 	.fk-col-value {

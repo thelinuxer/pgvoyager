@@ -3,7 +3,7 @@
 	import { activeConnectionId } from '$lib/stores/connections';
 	import { tabs } from '$lib/stores/tabs';
 	import { dataApi } from '$lib/api/client';
-	import type { Tab, TableDataResponse, ColumnInfo, ForeignKeyPreview } from '$lib/types';
+	import type { Tab, TableDataResponse, ColumnInfo, ForeignKeyPreview, TableLocation } from '$lib/types';
 	import FKPreviewPopup from './FKPreviewPopup.svelte';
 
 	interface Props {
@@ -27,8 +27,18 @@
 	let fkPreviewLoading = $state(false);
 	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
 
+	// Navigation state
+	let canGoBack = $derived(tabs.canNavigateBack(tab.id));
+	let canGoForward = $derived(tabs.canNavigateForward(tab.id));
+	let currentLocation = $derived(tabs.getCurrentLocation(tab.id));
+
+	// Reload data when tab's schema/table changes
 	$effect(() => {
 		if (tab.schema && tab.table) {
+			// Reset pagination when navigating
+			page = 1;
+			orderBy = null;
+			orderDir = 'ASC';
 			loadData();
 		}
 	});
@@ -40,11 +50,16 @@
 		error = null;
 
 		try {
+			const location = currentLocation;
+
+			// Apply filter from FK navigation if present
 			data = await dataApi.getTableData($activeConnectionId, tab.schema, tab.table, {
 				page,
 				pageSize,
 				orderBy: orderBy || undefined,
-				orderDir
+				orderDir,
+				filterColumn: location?.filter?.column,
+				filterValue: location?.filter?.value
 			});
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load data';
@@ -72,7 +87,38 @@
 	function handleFKClick(col: ColumnInfo, value: unknown) {
 		if (!col.fkReference || value === null) return;
 
-		tabs.openTable(col.fkReference.schema, col.fkReference.table);
+		// Handle FK click - respects tab pinning (pinned = new tab, unpinned = navigate within)
+		tabs.handleFKClick(
+			tab.id,
+			col.fkReference.schema,
+			col.fkReference.table,
+			col.fkReference.column,
+			String(value)
+		);
+	}
+
+	function handleBack() {
+		tabs.navigateBack(tab.id);
+	}
+
+	function handleForward() {
+		tabs.navigateForward(tab.id);
+	}
+
+	function clearFilter() {
+		// Navigate to the same table without filter
+		tabs.navigateToFK(tab.id, tab.schema!, tab.table!);
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.altKey && e.key === 'ArrowLeft' && canGoBack) {
+			e.preventDefault();
+			handleBack();
+		}
+		if (e.altKey && e.key === 'ArrowRight' && canGoForward) {
+			e.preventDefault();
+			handleForward();
+		}
 	}
 
 	async function handleFKHover(e: MouseEvent, col: ColumnInfo, value: unknown) {
@@ -125,25 +171,84 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <div class="table-viewer">
 	<div class="toolbar">
 		<div class="toolbar-left">
-			<span class="table-name">{tab.schema}.{tab.table}</span>
+			<div class="nav-buttons">
+				<button
+					class="btn btn-sm btn-ghost nav-btn"
+					onclick={handleBack}
+					disabled={!canGoBack}
+					title="Go Back (Alt+←)"
+				>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M19 12H5M12 19l-7-7 7-7"/>
+					</svg>
+				</button>
+				<button
+					class="btn btn-sm btn-ghost nav-btn"
+					onclick={handleForward}
+					disabled={!canGoForward}
+					title="Go Forward (Alt+→)"
+				>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M5 12h14M12 5l7 7-7 7"/>
+					</svg>
+				</button>
+			</div>
+			<div class="breadcrumb">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<rect x="3" y="3" width="18" height="18" rx="2"/>
+					<path d="M3 9h18M9 21V9"/>
+				</svg>
+				<span class="table-name">{tab.schema}.{tab.table}</span>
+			</div>
+			{#if currentLocation?.filter}
+				<div class="filter-badge" title="Filtered by {currentLocation.filter.column} = {currentLocation.filter.value}">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+					</svg>
+					<span class="filter-text">{currentLocation.filter.column} = {currentLocation.filter.value}</span>
+					<button class="filter-clear" onclick={clearFilter} title="Clear filter">
+						<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+							<path d="M18 6L6 18M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+			{/if}
 			{#if data}
 				<span class="row-count">{data.totalRows.toLocaleString()} rows</span>
 			{/if}
 		</div>
 		<div class="toolbar-right">
-			<button class="btn btn-sm btn-ghost" onclick={loadData} disabled={isLoading}>
-				🔄 Refresh
+			<button class="btn btn-sm btn-ghost" onclick={loadData} disabled={isLoading} title="Refresh">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class:spinning={isLoading}>
+					<path d="M23 4v6h-6M1 20v-6h6"/>
+					<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+				</svg>
+				Refresh
 			</button>
 		</div>
 	</div>
 
 	{#if isLoading && !data}
-		<div class="loading">Loading...</div>
+		<div class="loading">
+			<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
+				<path d="M23 4v6h-6M1 20v-6h6"/>
+				<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+			</svg>
+			Loading...
+		</div>
 	{:else if error}
-		<div class="error">{error}</div>
+		<div class="error">
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<circle cx="12" cy="12" r="10"/>
+				<path d="M12 8v4M12 16h.01"/>
+			</svg>
+			{error}
+		</div>
 	{:else if data}
 		<div class="table-container">
 			<table class="data-table">
@@ -157,14 +262,25 @@
 							>
 								<div class="th-content">
 									{#if col.isPrimaryKey}
-										<span class="pk-icon" title="Primary Key">🔑</span>
+										<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" class="pk-icon" title="Primary Key">
+											<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+										</svg>
 									{/if}
 									{#if col.isForeignKey}
-										<span class="fk-icon" title="Foreign Key">🔗</span>
+										<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="fk-icon" title="Foreign Key">
+											<path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+											<path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+										</svg>
 									{/if}
 									<span class="col-name">{col.name}</span>
 									{#if orderBy === col.name}
-										<span class="sort-icon">{orderDir === 'ASC' ? '▲' : '▼'}</span>
+										<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sort-icon">
+											{#if orderDir === 'ASC'}
+												<path d="M12 19V5M5 12l7-7 7 7"/>
+											{:else}
+												<path d="M12 5v14M5 12l7 7 7-7"/>
+											{/if}
+										</svg>
 									{/if}
 								</div>
 								<div class="col-type">{col.dataType}</div>
@@ -202,30 +318,42 @@
 					class="btn btn-sm btn-ghost"
 					disabled={page === 1}
 					onclick={() => handlePageChange(1)}
+					title="First page"
 				>
-					⟪
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>
+					</svg>
 				</button>
 				<button
 					class="btn btn-sm btn-ghost"
 					disabled={page === 1}
 					onclick={() => handlePageChange(page - 1)}
+					title="Previous page"
 				>
-					⟨
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M15 18l-6-6 6-6"/>
+					</svg>
 				</button>
 				<span class="page-info">Page {page} of {data.totalPages}</span>
 				<button
 					class="btn btn-sm btn-ghost"
 					disabled={page === data.totalPages}
 					onclick={() => handlePageChange(page + 1)}
+					title="Next page"
 				>
-					⟩
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M9 18l6-6-6-6"/>
+					</svg>
 				</button>
 				<button
 					class="btn btn-sm btn-ghost"
 					disabled={page === data.totalPages}
 					onclick={() => handlePageChange(data!.totalPages)}
+					title="Last page"
 				>
-					⟫
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
+					</svg>
 				</button>
 			</div>
 			<div class="page-size">
@@ -272,12 +400,47 @@
 		padding: 8px 16px;
 		background: var(--color-bg-secondary);
 		border-bottom: 1px solid var(--color-border);
+		gap: 12px;
 	}
 
 	.toolbar-left {
 		display: flex;
 		align-items: center;
 		gap: 12px;
+	}
+
+	.toolbar-right {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.nav-buttons {
+		display: flex;
+		gap: 2px;
+	}
+
+	.nav-btn {
+		padding: 6px;
+		min-width: 28px;
+	}
+
+	.nav-btn:disabled {
+		opacity: 0.3;
+	}
+
+	.nav-btn svg {
+		display: block;
+	}
+
+	.breadcrumb {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.breadcrumb svg {
+		color: var(--color-text-muted);
 	}
 
 	.table-name {
@@ -288,6 +451,49 @@
 	.row-count {
 		font-size: 12px;
 		color: var(--color-text-muted);
+		padding: 2px 8px;
+		background: var(--color-surface);
+		border-radius: 10px;
+	}
+
+	.filter-badge {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 4px 8px;
+		background: rgba(137, 180, 250, 0.15);
+		border: 1px solid var(--color-primary);
+		border-radius: var(--radius-sm);
+		font-size: 12px;
+		color: var(--color-primary);
+	}
+
+	.filter-badge svg {
+		flex-shrink: 0;
+	}
+
+	.filter-text {
+		font-family: var(--font-mono);
+		max-width: 200px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.filter-clear {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 2px;
+		border-radius: 2px;
+		opacity: 0.7;
+		transition: all var(--transition-fast);
+	}
+
+	.filter-clear:hover {
+		opacity: 1;
+		background: var(--color-primary);
+		color: var(--color-bg);
 	}
 
 	.loading,
@@ -296,11 +502,21 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		gap: 8px;
 		color: var(--color-text-muted);
 	}
 
 	.error {
 		color: var(--color-error);
+	}
+
+	.spinning {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	.table-container {
@@ -321,9 +537,12 @@
 		margin-top: 2px;
 	}
 
-	.pk-icon,
+	.pk-icon {
+		color: var(--color-warning);
+	}
+
 	.fk-icon {
-		font-size: 10px;
+		color: var(--color-primary);
 	}
 
 	th.sortable {
@@ -335,7 +554,6 @@
 	}
 
 	.sort-icon {
-		font-size: 10px;
 		color: var(--color-primary);
 	}
 
@@ -357,6 +575,10 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
+	}
+
+	.pagination-controls .btn {
+		padding: 4px 6px;
 	}
 
 	.page-info {

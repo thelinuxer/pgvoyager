@@ -104,6 +104,41 @@ export interface View {
 	comment?: string;
 }
 
+export interface Function {
+	schema: string;
+	name: string;
+	owner: string;
+	returnType: string;
+	arguments: string;
+	language: string;
+	definition: string;
+	isAggregate: boolean;
+	comment?: string;
+}
+
+export interface Sequence {
+	schema: string;
+	name: string;
+	owner: string;
+	dataType: string;
+	startValue: number;
+	minValue: number;
+	maxValue: number;
+	increment: number;
+	cacheSize: number;
+	isCycled: boolean;
+	lastValue?: number;
+}
+
+export interface CustomType {
+	schema: string;
+	name: string;
+	owner: string;
+	type: string; // enum, composite, domain, range
+	elements?: string[];
+	comment?: string;
+}
+
 export interface TableDataResponse {
 	columns: ColumnInfo[];
 	rows: Record<string, unknown>[];
@@ -128,7 +163,16 @@ export interface QueryResult {
 	error?: string;
 }
 
-export type TabType = 'table' | 'query' | 'view';
+export type TabType = 'table' | 'query' | 'view' | 'function' | 'sequence' | 'type';
+
+export interface TableLocation {
+	schema: string;
+	table: string;
+	filter?: {
+		column: string;
+		value: string;
+	};
+}
 
 export interface Tab {
 	id: string;
@@ -137,8 +181,14 @@ export interface Tab {
 	schema?: string;
 	table?: string;
 	view?: string;
+	functionName?: string;
+	sequenceName?: string;
+	typeName?: string;
 	isPinned: boolean;
 	data?: TableDataResponse | QueryResult;
+	// Navigation stack for table tabs
+	navigationStack?: TableLocation[];
+	navigationIndex?: number;
 }
 
 export interface SchemaTreeNode {
@@ -147,5 +197,5 @@ export interface SchemaTreeNode {
 	schema?: string;
 	children?: SchemaTreeNode[];
 	isExpanded?: boolean;
-	data?: Table | View;
+	data?: Table | View | Function | Sequence | CustomType;
 }

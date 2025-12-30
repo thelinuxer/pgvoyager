@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tabs, activeTabId, activeTab } from '$lib/stores/tabs';
+	import { tabs, activeTabId } from '$lib/stores/tabs';
 	import type { Tab } from '$lib/types';
 
 	function handleTabClick(tab: Tab) {
@@ -26,20 +26,54 @@
 	function handleDoubleClick(tab: Tab) {
 		tabs.togglePin(tab.id);
 	}
-
-	function getTabIcon(tab: Tab): string {
-		switch (tab.type) {
-			case 'table':
-				return '📋';
-			case 'query':
-				return '📝';
-			case 'view':
-				return '👁';
-			default:
-				return '📄';
-		}
-	}
 </script>
+
+{#snippet iconTable()}
+	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<rect x="3" y="3" width="18" height="18" rx="2"/>
+		<path d="M3 9h18M3 15h18M9 3v18"/>
+	</svg>
+{/snippet}
+
+{#snippet iconQuery()}
+	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+		<path d="M14 2v6h6"/>
+		<path d="M10 12l-2 2 2 2M14 12l2 2-2 2"/>
+	</svg>
+{/snippet}
+
+{#snippet iconView()}
+	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+		<circle cx="12" cy="12" r="3"/>
+	</svg>
+{/snippet}
+
+{#snippet iconPin()}
+	<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
+		<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+		<circle cx="12" cy="9" r="2.5" fill="var(--color-bg)"/>
+	</svg>
+{/snippet}
+
+{#snippet iconClose()}
+	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<path d="M18 6L6 18M6 6l12 12"/>
+	</svg>
+{/snippet}
+
+{#snippet getTabIcon(tab: Tab)}
+	{#if tab.type === 'table'}
+		{@render iconTable()}
+	{:else if tab.type === 'query'}
+		{@render iconQuery()}
+	{:else if tab.type === 'view'}
+		{@render iconView()}
+	{:else}
+		{@render iconTable()}
+	{/if}
+{/snippet}
 
 <div class="tab-bar">
 	<div class="tabs-container">
@@ -57,17 +91,17 @@
 				role="tab"
 				tabindex="0"
 			>
-				<span class="tab-icon">{getTabIcon(tab)}</span>
+				<span class="tab-icon">{@render getTabIcon(tab)}</span>
 				<span class="tab-title">{tab.title}</span>
 				{#if tab.isPinned}
-					<span class="tab-pin" title="Pinned">📌</span>
+					<span class="tab-pin" title="Pinned">{@render iconPin()}</span>
 				{:else}
 					<button
 						class="tab-close"
 						onclick={(e) => handleTabClose(e, tab)}
 						title="Close"
 					>
-						×
+						{@render iconClose()}
 					</button>
 				{/if}
 			</div>
@@ -80,7 +114,10 @@
 			onclick={() => tabs.openQuery()}
 			title="New Query (Ctrl+N)"
 		>
-			+
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<line x1="12" y1="5" x2="12" y2="19"/>
+				<line x1="5" y1="12" x2="19" y2="12"/>
+			</svg>
 		</button>
 	</div>
 </div>
@@ -115,6 +152,7 @@
 		white-space: nowrap;
 		transition: background var(--transition-fast);
 		max-width: 200px;
+		cursor: pointer;
 	}
 
 	.tab:hover {
@@ -136,7 +174,9 @@
 	}
 
 	.tab-icon {
-		font-size: 12px;
+		display: flex;
+		align-items: center;
+		color: var(--color-text-muted);
 	}
 
 	.tab-title {
@@ -147,7 +187,9 @@
 	}
 
 	.tab-pin {
-		font-size: 10px;
+		display: flex;
+		align-items: center;
+		color: var(--color-primary);
 		opacity: 0.7;
 	}
 
@@ -158,7 +200,6 @@
 		width: 18px;
 		height: 18px;
 		border-radius: var(--radius-sm);
-		font-size: 16px;
 		opacity: 0.5;
 		transition: all var(--transition-fast);
 	}

@@ -48,6 +48,8 @@ func GetTableData(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "100"))
 	orderBy := c.Query("orderBy")
 	orderDir := c.DefaultQuery("orderDir", "ASC")
+	filterColumn := c.Query("filterColumn")
+	filterValue := c.Query("filterValue")
 
 	if page < 1 {
 		page = 1
@@ -59,6 +61,13 @@ func GetTableData(c *gin.Context) {
 		orderDir = "ASC"
 	}
 
+	// Validate filter column if provided
+	hasFilter := filterColumn != "" && filterValue != ""
+	if hasFilter && !isValidIdentifier(filterColumn) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filter column name"})
+		return
+	}
+
 	// Get column info with FK references
 	columns, err := getTableColumnInfo(ctx, pool, schema, table)
 	if err != nil {
@@ -66,17 +75,25 @@ func GetTableData(c *gin.Context) {
 		return
 	}
 
-	// Get total row count
+	// Build WHERE clause for filter
+	var whereClause string
+	var queryArgs []any
+	if hasFilter {
+		whereClause = fmt.Sprintf(" WHERE %s = $1", quoteIdentifier(filterColumn))
+		queryArgs = append(queryArgs, filterValue)
+	}
+
+	// Get total row count (with filter if applicable)
 	var totalRows int64
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", quoteIdentifier(schema), quoteIdentifier(table))
-	if err := pool.QueryRow(ctx, countQuery).Scan(&totalRows); err != nil {
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s%s", quoteIdentifier(schema), quoteIdentifier(table), whereClause)
+	if err := pool.QueryRow(ctx, countQuery, queryArgs...).Scan(&totalRows); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Build data query
 	offset := (page - 1) * pageSize
-	dataQuery := fmt.Sprintf("SELECT * FROM %s.%s", quoteIdentifier(schema), quoteIdentifier(table))
+	dataQuery := fmt.Sprintf("SELECT * FROM %s.%s%s", quoteIdentifier(schema), quoteIdentifier(table), whereClause)
 
 	if orderBy != "" && isValidIdentifier(orderBy) {
 		dataQuery += fmt.Sprintf(" ORDER BY %s %s", quoteIdentifier(orderBy), orderDir)
@@ -84,7 +101,7 @@ func GetTableData(c *gin.Context) {
 
 	dataQuery += fmt.Sprintf(" LIMIT %d OFFSET %d", pageSize, offset)
 
-	rows, err := pool.Query(ctx, dataQuery)
+	rows, err := pool.Query(ctx, dataQuery, queryArgs...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

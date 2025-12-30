@@ -308,6 +308,59 @@ func GetForeignKeyPreview(c *gin.Context) {
 	})
 }
 
+// splitStatements splits SQL into individual statements, handling string literals
+func splitStatements(sql string) []string {
+	var statements []string
+	var current strings.Builder
+	inString := false
+	stringChar := rune(0)
+
+	for i, ch := range sql {
+		current.WriteRune(ch)
+
+		if !inString {
+			if ch == '\'' || ch == '"' {
+				inString = true
+				stringChar = ch
+			} else if ch == ';' {
+				stmt := strings.TrimSpace(current.String())
+				// Remove trailing semicolon for cleaner statement
+				stmt = strings.TrimSuffix(stmt, ";")
+				stmt = strings.TrimSpace(stmt)
+				if len(stmt) > 0 {
+					statements = append(statements, stmt)
+				}
+				current.Reset()
+			}
+		} else {
+			if ch == stringChar {
+				// Check for escaped quote (two consecutive quotes)
+				if i+1 < len(sql) && rune(sql[i+1]) == stringChar {
+					continue
+				}
+				inString = false
+			}
+		}
+	}
+
+	// Handle last statement (may not end with semicolon)
+	stmt := strings.TrimSpace(current.String())
+	if len(stmt) > 0 {
+		statements = append(statements, stmt)
+	}
+
+	return statements
+}
+
+// isSelectStatement checks if a statement is a SELECT (returns rows)
+func isSelectStatement(sql string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(sql))
+	return strings.HasPrefix(upper, "SELECT") ||
+		strings.HasPrefix(upper, "WITH") ||
+		strings.HasPrefix(upper, "TABLE") ||
+		strings.HasPrefix(upper, "VALUES")
+}
+
 func ExecuteQuery(c *gin.Context) {
 	manager, connId, ok := getPool(c)
 	if !ok {
@@ -325,6 +378,47 @@ func ExecuteQuery(c *gin.Context) {
 	}
 
 	start := time.Now()
+
+	// Split into statements and handle multi-statement queries
+	statements := splitStatements(req.SQL)
+
+	// If multiple statements, execute non-SELECT statements first with Exec
+	// then execute the final SELECT with Query
+	if len(statements) > 1 && len(req.Params) == 0 {
+		var selectStmt string
+		for _, stmt := range statements {
+			if isSelectStatement(stmt) {
+				selectStmt = stmt
+			} else {
+				// Execute non-SELECT statements (SET, CREATE, etc.)
+				_, err := pool.Exec(ctx, stmt)
+				if err != nil {
+					duration := time.Since(start).Seconds() * 1000
+					c.JSON(http.StatusOK, models.QueryResult{
+						Error:    err.Error(),
+						Duration: duration,
+					})
+					return
+				}
+			}
+		}
+
+		// If there was a SELECT statement, execute it
+		if selectStmt != "" {
+			req.SQL = selectStmt
+		} else {
+			// All statements were non-SELECT, return success
+			duration := time.Since(start).Seconds() * 1000
+			c.JSON(http.StatusOK, models.QueryResult{
+				Columns:  []models.ColumnInfo{},
+				Rows:     []map[string]any{},
+				RowCount: 0,
+				Duration: duration,
+			})
+			return
+		}
+	}
+
 	rows, err := pool.Query(ctx, req.SQL, req.Params...)
 	duration := time.Since(start).Seconds() * 1000
 

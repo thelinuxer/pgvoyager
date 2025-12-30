@@ -1,4 +1,4 @@
-module github.com/atoulan/pgvoyager
+module github.com/thelinuxer/pgvoyager
 
 go 1.24.0
 

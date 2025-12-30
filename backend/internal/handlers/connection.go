@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/atoulan/pgvoyager/internal/database"
-	"github.com/atoulan/pgvoyager/internal/models"
+	"github.com/thelinuxer/pgvoyager/internal/database"
+	"github.com/thelinuxer/pgvoyager/internal/models"
 	"github.com/gin-gonic/gin"
 )
 

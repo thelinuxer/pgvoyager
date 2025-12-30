@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/atoulan/pgvoyager/internal/handlers"
+	"github.com/thelinuxer/pgvoyager/internal/handlers"
 	"github.com/gin-gonic/gin"
 )
 

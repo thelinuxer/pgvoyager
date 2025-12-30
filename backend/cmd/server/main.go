@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/atoulan/pgvoyager/internal/api"
+	"github.com/thelinuxer/pgvoyager/internal/api"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )

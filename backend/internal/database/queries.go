@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/atoulan/pgvoyager/internal/models"
+	"github.com/thelinuxer/pgvoyager/internal/models"
 	"github.com/google/uuid"
 )
 

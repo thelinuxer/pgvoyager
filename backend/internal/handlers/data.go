@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atoulan/pgvoyager/internal/models"
+	"github.com/thelinuxer/pgvoyager/internal/models"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 )

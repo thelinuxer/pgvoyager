@@ -172,6 +172,11 @@ export interface TableLocation {
 		column: string;
 		value: string;
 	};
+	sort?: {
+		column: string;
+		direction: 'ASC' | 'DESC';
+	};
+	limit?: number;
 }
 
 export interface Tab {
@@ -189,6 +194,8 @@ export interface Tab {
 	// Navigation stack for table tabs
 	navigationStack?: TableLocation[];
 	navigationIndex?: number;
+	// For query tabs
+	initialSql?: string;
 }
 
 export interface SchemaTreeNode {

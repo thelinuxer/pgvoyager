@@ -13,12 +13,19 @@
 
 	let { tab }: Props = $props();
 
-	let query = $state('SELECT * FROM ');
+	let query = $state(tab.initialSql || 'SELECT * FROM ');
 	let result = $state<QueryResult | null>(null);
 	let isExecuting = $state(false);
 	let executionTime = $state<number | null>(null);
 
 	const extensions = [sql({ dialect: PostgreSQL }), oneDark];
+
+	// Update query if tab changes with new initialSql
+	$effect(() => {
+		if (tab.initialSql && query === 'SELECT * FROM ') {
+			query = tab.initialSql;
+		}
+	});
 
 	async function executeQuery() {
 		if (!$activeConnectionId || !query.trim()) return;

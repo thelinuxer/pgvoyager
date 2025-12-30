@@ -37,8 +37,19 @@
 		if (tab.schema && tab.table) {
 			// Reset pagination when navigating
 			page = 1;
-			orderBy = null;
-			orderDir = 'ASC';
+			// Use sort from location if available
+			const location = tabs.getCurrentLocation(tab.id);
+			if (location?.sort) {
+				orderBy = location.sort.column;
+				orderDir = location.sort.direction;
+			} else {
+				orderBy = null;
+				orderDir = 'ASC';
+			}
+			// Use limit from location if specified
+			if (location?.limit) {
+				pageSize = location.limit;
+			}
 			loadData();
 		}
 	});
@@ -52,12 +63,12 @@
 		try {
 			const location = currentLocation;
 
-			// Apply filter from FK navigation if present
+			// Apply filter and sort from navigation if present
 			data = await dataApi.getTableData($activeConnectionId, tab.schema, tab.table, {
 				page,
 				pageSize,
-				orderBy: orderBy || undefined,
-				orderDir,
+				orderBy: orderBy || location?.sort?.column || undefined,
+				orderDir: orderDir || location?.sort?.direction || 'ASC',
 				filterColumn: location?.filter?.column,
 				filterValue: location?.filter?.value
 			});

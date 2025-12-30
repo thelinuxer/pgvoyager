@@ -2,7 +2,7 @@
 	import { activeConnection } from '$lib/stores/connections';
 	import { schemaTree, expandedNodes, toggleNode, isLoading, error } from '$lib/stores/schema';
 	import { tabs } from '$lib/stores/tabs';
-	import type { SchemaTreeNode } from '$lib/types';
+	import type { SchemaTreeNode, Table } from '$lib/types';
 
 	interface Props {
 		width: number;
@@ -12,6 +12,9 @@
 	let { width, onNewConnection }: Props = $props();
 
 	let searchQuery = $state('');
+
+	// Context menu state
+	let contextMenu = $state<{ node: SchemaTreeNode; x: number; y: number } | null>(null);
 
 	// Filter the tree based on search query
 	function filterTree(nodes: SchemaTreeNode[], query: string): SchemaTreeNode[] {
@@ -98,6 +101,58 @@
 
 		const key = node.schema ? `${node.schema}:${node.name}` : node.name;
 		return $expandedNodes.has(key);
+	}
+
+	function handleContextMenu(e: MouseEvent, node: SchemaTreeNode) {
+		if (node.type !== 'table' || !node.schema) return;
+		e.preventDefault();
+		contextMenu = { node, x: e.clientX, y: e.clientY };
+	}
+
+	function closeContextMenu() {
+		contextMenu = null;
+	}
+
+	function getPrimaryKeyColumn(node: SchemaTreeNode): string | null {
+		// Try to get primary key from table data if available
+		// For now, default to 'id' as a common convention
+		return 'id';
+	}
+
+	function handleShowFirst100(node: SchemaTreeNode) {
+		if (!node.schema) return;
+		const pkColumn = getPrimaryKeyColumn(node);
+		tabs.openTable(node.schema, node.name, {
+			sort: pkColumn ? { column: pkColumn, direction: 'ASC' } : undefined,
+			limit: 100,
+			forceNew: true
+		});
+		closeContextMenu();
+	}
+
+	function handleShowLast100(node: SchemaTreeNode) {
+		if (!node.schema) return;
+		const pkColumn = getPrimaryKeyColumn(node);
+		tabs.openTable(node.schema, node.name, {
+			sort: pkColumn ? { column: pkColumn, direction: 'DESC' } : undefined,
+			limit: 100,
+			forceNew: true
+		});
+		closeContextMenu();
+	}
+
+	function handleOpenInQuery(node: SchemaTreeNode) {
+		if (!node.schema) return;
+		const sql = `SELECT *\nFROM "${node.schema}"."${node.name}"\nLIMIT 100;`;
+		tabs.openQuery({ title: `${node.schema}.${node.name}`, initialSql: sql });
+		closeContextMenu();
+	}
+
+	function handleCopyName(node: SchemaTreeNode) {
+		if (!node.schema) return;
+		const fullName = `"${node.schema}"."${node.name}"`;
+		navigator.clipboard.writeText(fullName);
+		closeContextMenu();
 	}
 
 	function clearSearch() {
@@ -282,12 +337,49 @@
 	</div>
 </aside>
 
+<!-- Context Menu -->
+{#if contextMenu}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="context-menu-backdrop" onclick={closeContextMenu}></div>
+	<div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px">
+		<button class="context-menu-item" onclick={() => handleShowFirst100(contextMenu.node)}>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M12 19V5M5 12l7-7 7 7"/>
+			</svg>
+			Show first 100 rows
+		</button>
+		<button class="context-menu-item" onclick={() => handleShowLast100(contextMenu.node)}>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M12 5v14M5 12l7 7 7-7"/>
+			</svg>
+			Show last 100 rows
+		</button>
+		<div class="context-menu-separator"></div>
+		<button class="context-menu-item" onclick={() => handleOpenInQuery(contextMenu.node)}>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+				<path d="M14 2v6h6"/>
+			</svg>
+			Open in Query Editor
+		</button>
+		<button class="context-menu-item" onclick={() => handleCopyName(contextMenu.node)}>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<rect x="9" y="9" width="13" height="13" rx="2"/>
+				<path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+			</svg>
+			Copy table name
+		</button>
+	</div>
+{/if}
+
 {#snippet treeNode(node: SchemaTreeNode, depth: number)}
 	<div class="tree-item" style="padding-left: {depth * 16 + 8}px">
 		<button
 			class="tree-item-button"
 			onclick={() => handleNodeClick(node)}
 			ondblclick={() => handleDoubleClick(node)}
+			oncontextmenu={(e) => handleContextMenu(e, node)}
 		>
 			{#if node.children && node.children.length > 0}
 				<span class="tree-chevron" class:expanded={isExpanded(node)}>
@@ -304,6 +396,23 @@
 				<span class="tree-badge">{node.data.rowCount.toLocaleString()}</span>
 			{/if}
 		</button>
+		{#if node.type === 'table'}
+			<button
+				class="tree-item-menu"
+				onclick={(e) => {
+					e.stopPropagation();
+					const rect = e.currentTarget.getBoundingClientRect();
+					contextMenu = { node, x: rect.right, y: rect.top };
+				}}
+				title="More options"
+			>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="12" cy="12" r="1"/>
+					<circle cx="12" cy="5" r="1"/>
+					<circle cx="12" cy="19" r="1"/>
+				</svg>
+			</button>
+		{/if}
 	</div>
 
 	{#if node.children && isExpanded(node)}
@@ -503,5 +612,69 @@
 		padding: 1px 6px;
 		background: var(--color-surface);
 		border-radius: 8px;
+	}
+
+	.tree-item-menu {
+		display: none;
+		align-items: center;
+		justify-content: center;
+		padding: 2px;
+		margin-right: 4px;
+		border-radius: var(--radius-sm);
+		color: var(--color-text-muted);
+		transition: all var(--transition-fast);
+	}
+
+	.tree-item:hover .tree-item-menu {
+		display: flex;
+	}
+
+	.tree-item-menu:hover {
+		color: var(--color-text);
+		background: var(--color-bg-tertiary);
+	}
+
+	/* Context Menu */
+	.context-menu-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 999;
+	}
+
+	.context-menu {
+		position: fixed;
+		z-index: 1000;
+		min-width: 180px;
+		background: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		padding: 4px;
+	}
+
+	.context-menu-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		padding: 8px 12px;
+		font-size: 13px;
+		text-align: left;
+		border-radius: var(--radius-sm);
+		transition: background var(--transition-fast);
+	}
+
+	.context-menu-item:hover {
+		background: var(--color-surface);
+	}
+
+	.context-menu-item svg {
+		color: var(--color-text-muted);
+	}
+
+	.context-menu-separator {
+		height: 1px;
+		background: var(--color-border);
+		margin: 4px 0;
 	}
 </style>

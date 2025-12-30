@@ -11,14 +11,23 @@ function createTabsStore() {
 	return {
 		subscribe,
 
-		openTable: (schema: string, table: string, filter?: { column: string; value: string }) => {
+		openTable: (
+			schema: string,
+			table: string,
+			options?: {
+				filter?: { column: string; value: string };
+				sort?: { column: string; direction: 'ASC' | 'DESC' };
+				limit?: number;
+				forceNew?: boolean;
+			}
+		) => {
 			update((tabs) => {
-				// Check if tab already exists with same filter (or no filter)
+				// Check if tab already exists (only for requests without special options)
 				const existing = tabs.find(
 					(t) => t.type === 'table' && t.schema === schema && t.table === table
 				);
-				if (existing && !filter) {
-					// Just activate it (only for non-filtered requests)
+				if (existing && !options?.filter && !options?.sort && !options?.forceNew) {
+					// Just activate it (only for simple requests)
 					activeTabId.set(existing.id);
 					return tabs;
 				}
@@ -26,11 +35,23 @@ function createTabsStore() {
 				// Find first unpinned tab to potentially replace
 				const unpinnedIndex = tabs.findIndex((t) => !t.isPinned);
 
-				const initialLocation: TableLocation = { schema, table, filter };
+				const initialLocation: TableLocation = {
+					schema,
+					table,
+					filter: options?.filter,
+					sort: options?.sort,
+					limit: options?.limit
+				};
+
+				let titleSuffix = '';
+				if (options?.filter) titleSuffix = ' (filtered)';
+				else if (options?.sort?.direction === 'DESC') titleSuffix = ' (last)';
+				else if (options?.sort) titleSuffix = ' (first)';
+
 				const newTab: Tab = {
 					id: generateTabId(),
 					type: 'table',
-					title: filter ? `${schema}.${table} (filtered)` : `${schema}.${table}`,
+					title: `${schema}.${table}${titleSuffix}`,
 					schema,
 					table,
 					isPinned: false,
@@ -53,14 +74,15 @@ function createTabsStore() {
 			});
 		},
 
-		openQuery: (title?: string) => {
+		openQuery: (options?: { title?: string; initialSql?: string }) => {
 			update((tabs) => {
 				const queryCount = tabs.filter((t) => t.type === 'query').length;
 				const newTab: Tab = {
 					id: generateTabId(),
 					type: 'query',
-					title: title || `Query ${queryCount + 1}`,
-					isPinned: false
+					title: options?.title || `Query ${queryCount + 1}`,
+					isPinned: false,
+					initialSql: options?.initialSql
 				};
 
 				activeTabId.set(newTab.id);

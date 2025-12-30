@@ -1,27 +1,31 @@
 <script lang="ts">
 	import { connections, activeConnectionId } from '$lib/stores/connections';
 	import { connectionApi } from '$lib/api/client';
-	import type { ConnectionRequest } from '$lib/types';
+	import type { Connection, ConnectionRequest } from '$lib/types';
 
 	interface Props {
 		onClose: () => void;
+		editConnection?: Connection | null;
 	}
 
-	let { onClose }: Props = $props();
+	let { onClose, editConnection = null }: Props = $props();
+
+	const isEditMode = $derived(!!editConnection);
 
 	let form = $state<ConnectionRequest>({
-		name: '',
-		host: 'localhost',
-		port: 5432,
-		database: '',
-		username: 'postgres',
-		password: '',
-		sslMode: 'prefer'
+		name: editConnection?.name || '',
+		host: editConnection?.host || 'localhost',
+		port: editConnection?.port || 5432,
+		database: editConnection?.database || '',
+		username: editConnection?.username || 'postgres',
+		password: editConnection?.password || '',
+		sslMode: editConnection?.sslMode || 'prefer'
 	});
 
 	let isTesting = $state(false);
 	let testResult = $state<{ success: boolean; message: string } | null>(null);
 	let isSaving = $state(false);
+	let isDeleting = $state(false);
 	let error = $state<string | null>(null);
 
 	async function handleTest() {
@@ -59,19 +63,54 @@
 		error = null;
 
 		try {
-			const conn = await connectionApi.create(form);
-			connections.add(conn);
+			if (isEditMode && editConnection) {
+				// Update existing connection
+				const conn = await connectionApi.update(editConnection.id, form);
+				connections.updateConnection(editConnection.id, conn);
+				onClose();
+			} else {
+				// Create new connection
+				const conn = await connectionApi.create(form);
+				connections.add(conn);
 
-			// Auto-connect
-			await connectionApi.connect(conn.id);
-			connections.setConnected(conn.id, true);
-			activeConnectionId.set(conn.id);
+				// Auto-connect
+				await connectionApi.connect(conn.id);
+				connections.setConnected(conn.id, true);
+				activeConnectionId.set(conn.id);
 
-			onClose();
+				onClose();
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to save connection';
 		} finally {
 			isSaving = false;
+		}
+	}
+
+	async function handleDelete() {
+		if (!editConnection) return;
+
+		if (!confirm(`Are you sure you want to delete the connection "${editConnection.name}"?`)) {
+			return;
+		}
+
+		isDeleting = true;
+		error = null;
+
+		try {
+			await connectionApi.delete(editConnection.id);
+			connections.remove(editConnection.id);
+
+			// If this was the active connection, clear it
+			if ($activeConnectionId === editConnection.id) {
+				activeConnectionId.set(null);
+			}
+
+			onClose();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to delete connection';
+		} finally {
+			isDeleting = false;
 		}
 	}
 
@@ -92,7 +131,7 @@
 					<path d="M2 17l10 5 10-5"/>
 					<path d="M2 12l10 5 10-5"/>
 				</svg>
-				New Connection
+				{isEditMode ? 'Edit Connection' : 'New Connection'}
 			</h2>
 			<button class="modal-close" onclick={onClose} title="Close">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -196,13 +235,26 @@
 		</div>
 
 		<div class="modal-footer">
-			<button class="btn btn-secondary" onclick={handleTest} disabled={isTesting}>
-				{isTesting ? 'Testing...' : 'Test Connection'}
-			</button>
+			<div class="modal-footer-left">
+				<button class="btn btn-secondary" onclick={handleTest} disabled={isTesting}>
+					{isTesting ? 'Testing...' : 'Test Connection'}
+				</button>
+				{#if isEditMode}
+					<button class="btn btn-danger" onclick={handleDelete} disabled={isDeleting}>
+						{isDeleting ? 'Deleting...' : 'Delete'}
+					</button>
+				{/if}
+			</div>
 			<div class="modal-footer-right">
 				<button class="btn btn-ghost" onclick={onClose}>Cancel</button>
 				<button class="btn btn-primary" onclick={handleSave} disabled={isSaving}>
-					{isSaving ? 'Saving...' : 'Save & Connect'}
+					{#if isSaving}
+						Saving...
+					{:else if isEditMode}
+						Save Changes
+					{:else}
+						Save & Connect
+					{/if}
 				</button>
 			</div>
 		</div>
@@ -343,8 +395,23 @@
 		background: var(--color-bg-secondary);
 	}
 
+	.modal-footer-left,
 	.modal-footer-right {
 		display: flex;
 		gap: 8px;
+	}
+
+	:global(.btn-danger) {
+		background: var(--color-error);
+		color: white;
+	}
+
+	:global(.btn-danger:hover) {
+		background: color-mix(in srgb, var(--color-error) 85%, black);
+	}
+
+	:global(.btn-danger:disabled) {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 </style>

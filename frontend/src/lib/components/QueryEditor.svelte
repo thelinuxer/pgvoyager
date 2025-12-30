@@ -2,10 +2,12 @@
 	import { onMount } from 'svelte';
 	import { activeConnectionId } from '$lib/stores/connections';
 	import { queryApi } from '$lib/api/client';
+	import { layout } from '$lib/stores/layout';
 	import type { Tab, QueryResult } from '$lib/types';
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { sql, PostgreSQL } from '@codemirror/lang-sql';
 	import { oneDark } from '@codemirror/theme-one-dark';
+	import ResizeHandle from './ResizeHandle.svelte';
 
 	interface Props {
 		tab: Tab;
@@ -17,6 +19,7 @@
 	let result = $state<QueryResult | null>(null);
 	let isExecuting = $state(false);
 	let executionTime = $state<number | null>(null);
+	let containerEl: HTMLDivElement;
 
 	const extensions = [sql({ dialect: PostgreSQL }), oneDark];
 
@@ -26,6 +29,13 @@
 			query = tab.initialSql;
 		}
 	});
+
+	function handleEditorResize(delta: number) {
+		if (!containerEl) return;
+		const containerHeight = containerEl.offsetHeight;
+		const deltaPercent = (delta / containerHeight) * 100;
+		layout.setQueryEditorHeight($layout.queryEditorHeight + deltaPercent);
+	}
 
 	async function executeQuery() {
 		if (!$activeConnectionId || !query.trim()) return;
@@ -65,10 +75,42 @@
 		}
 		return String(value);
 	}
+
+	function formatCsvValue(value: unknown): string {
+		if (value === null || value === undefined) return '';
+		const str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+		// Escape quotes and wrap in quotes if contains comma, quote, or newline
+		if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+			return `"${str.replace(/"/g, '""')}"`;
+		}
+		return str;
+	}
+
+	function exportToCsv() {
+		if (!result || result.columns.length === 0) return;
+
+		// Build CSV content
+		const headers = result.columns.map(col => formatCsvValue(col.name)).join(',');
+		const rows = result.rows.map(row =>
+			result.columns.map(col => formatCsvValue(row[col.name])).join(',')
+		);
+		const csvContent = [headers, ...rows].join('\n');
+
+		// Create and trigger download
+		const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = `query_results_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.csv`;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(url);
+	}
 </script>
 
-<div class="query-editor" onkeydown={handleKeydown}>
-	<div class="editor-section">
+<div class="query-editor" onkeydown={handleKeydown} bind:this={containerEl}>
+	<div class="editor-section" style="height: {$layout.queryEditorHeight}%">
 		<div class="editor-toolbar">
 			<button
 				class="btn btn-primary btn-sm"
@@ -108,6 +150,8 @@
 		</div>
 	</div>
 
+	<ResizeHandle direction="vertical" onResize={handleEditorResize} />
+
 	<div class="results-section">
 		{#if isExecuting}
 			<div class="results-loading">Executing query...</div>
@@ -119,6 +163,14 @@
 		{:else if result}
 			<div class="results-header">
 				<span>{result.rowCount} row{result.rowCount !== 1 ? 's' : ''} returned</span>
+				<button class="btn btn-sm btn-ghost" onclick={exportToCsv} title="Export to CSV">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+						<polyline points="7 10 12 15 17 10"/>
+						<line x1="12" y1="15" x2="12" y2="3"/>
+					</svg>
+					Export CSV
+				</button>
 			</div>
 			<div class="results-table-container">
 				{#if result.columns.length > 0}
@@ -166,9 +218,7 @@
 	.editor-section {
 		display: flex;
 		flex-direction: column;
-		height: 40%;
 		min-height: 150px;
-		border-bottom: 1px solid var(--color-border);
 	}
 
 	.editor-toolbar {
@@ -203,6 +253,9 @@
 	}
 
 	.results-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		padding: 8px 12px;
 		background: var(--color-bg-secondary);
 		border-bottom: 1px solid var(--color-border);

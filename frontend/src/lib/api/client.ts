@@ -19,13 +19,23 @@ import type {
 const API_BASE = 'http://localhost:8081/api';
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
-	const response = await fetch(`${API_BASE}${path}`, {
-		...options,
-		headers: {
-			'Content-Type': 'application/json',
-			...options?.headers
+	let response: Response;
+
+	try {
+		response = await fetch(`${API_BASE}${path}`, {
+			...options,
+			headers: {
+				'Content-Type': 'application/json',
+				...options?.headers
+			}
+		});
+	} catch (e) {
+		// Network error (server unreachable, CORS, etc.)
+		if (e instanceof TypeError && e.message.includes('fetch')) {
+			throw new Error('Unable to connect to server. Please check if the backend is running.');
 		}
-	});
+		throw new Error(e instanceof Error ? e.message : 'Network error');
+	}
 
 	if (!response.ok) {
 		const error = await response.json().catch(() => ({ error: 'Unknown error' }));

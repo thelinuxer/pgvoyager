@@ -28,12 +28,13 @@ export async function loadSchema(connId: string) {
 			schemaApi.listTypes(connId)
 		]);
 
-		schemas.set(schemaList);
-		tables.set(tableList);
-		views.set(viewList);
-		functions.set(functionList);
-		sequences.set(sequenceList);
-		customTypes.set(typeList);
+		// Handle null responses from API by defaulting to empty arrays
+		schemas.set(schemaList || []);
+		tables.set(tableList || []);
+		views.set(viewList || []);
+		functions.set(functionList || []);
+		sequences.set(sequenceList || []);
+		customTypes.set(typeList || []);
 	} catch (e) {
 		error.set(e instanceof Error ? e.message : 'Failed to load schema');
 	} finally {
@@ -55,12 +56,20 @@ export function clearSchema() {
 export const schemaTree = derived(
 	[schemas, tables, views, functions, sequences, customTypes],
 	([$schemas, $tables, $views, $functions, $sequences, $customTypes]): SchemaTreeNode[] => {
-		return $schemas.map((schema) => {
-			const schemaTables = $tables.filter((t) => t.schema === schema.name);
-			const schemaViews = $views.filter((v) => v.schema === schema.name);
-			const schemaFunctions = $functions.filter((f) => f.schema === schema.name);
-			const schemaSequences = $sequences.filter((s) => s.schema === schema.name);
-			const schemaTypes = $customTypes.filter((t) => t.schema === schema.name);
+		// Safety: ensure arrays are not null
+		const safeSchemas = $schemas || [];
+		const safeTables = $tables || [];
+		const safeViews = $views || [];
+		const safeFunctions = $functions || [];
+		const safeSequences = $sequences || [];
+		const safeTypes = $customTypes || [];
+
+		return safeSchemas.map((schema) => {
+			const schemaTables = safeTables.filter((t) => t.schema === schema.name);
+			const schemaViews = safeViews.filter((v) => v.schema === schema.name);
+			const schemaFunctions = safeFunctions.filter((f) => f.schema === schema.name);
+			const schemaSequences = safeSequences.filter((s) => s.schema === schema.name);
+			const schemaTypes = safeTypes.filter((t) => t.schema === schema.name);
 
 			const children: SchemaTreeNode[] = [];
 

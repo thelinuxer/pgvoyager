@@ -76,13 +76,13 @@
 			{#if updateInfo.hasUpdate}
 				<a href={updateInfo.releaseUrl} target="_blank" rel="noopener noreferrer"
 				   class="version-badge update-available"
-				   title="Update available! Click to download v{updateInfo.latestVersion}">
+				   title="Update available! Click to download {updateInfo.latestVersion}">
 					<Icon name="download" size={12} />
-					v{updateInfo.currentVersion}
+					{updateInfo.currentVersion}
 				</a>
 			{:else}
-				<span class="version-badge" title="PgVoyager v{updateInfo.currentVersion}">
-					v{updateInfo.currentVersion}
+				<span class="version-badge" title="PgVoyager {updateInfo.currentVersion}">
+					{updateInfo.currentVersion}
 				</span>
 			{/if}
 		{/if}

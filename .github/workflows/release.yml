@@ -99,12 +99,14 @@ jobs:
           cp releases/pgvoyager-linux-amd64 dist/pgvoyager-linux-amd64/pgvoyager
           cp releases/pgvoyager-mcp-linux-amd64 dist/pgvoyager-linux-amd64/pgvoyager-mcp
           cp packaging/linux/install.sh dist/pgvoyager-linux-amd64/
+          cp packaging/linux/uninstall.sh dist/pgvoyager-linux-amd64/
           cp packaging/linux/pgvoyager-launcher dist/pgvoyager-linux-amd64/
           cp packaging/linux/pgvoyager.desktop dist/pgvoyager-linux-amd64/
           cp packaging/linux/pgvoyager-*.png dist/pgvoyager-linux-amd64/
           chmod +x dist/pgvoyager-linux-amd64/pgvoyager
           chmod +x dist/pgvoyager-linux-amd64/pgvoyager-mcp
           chmod +x dist/pgvoyager-linux-amd64/install.sh
+          chmod +x dist/pgvoyager-linux-amd64/uninstall.sh
           chmod +x dist/pgvoyager-linux-amd64/pgvoyager-launcher
           cd dist && tar -czvf pgvoyager-linux-amd64.tar.gz pgvoyager-linux-amd64 && cd ..
 
@@ -113,12 +115,14 @@ jobs:
           cp releases/pgvoyager-linux-arm64 dist/pgvoyager-linux-arm64/pgvoyager
           cp releases/pgvoyager-mcp-linux-arm64 dist/pgvoyager-linux-arm64/pgvoyager-mcp
           cp packaging/linux/install.sh dist/pgvoyager-linux-arm64/
+          cp packaging/linux/uninstall.sh dist/pgvoyager-linux-arm64/
           cp packaging/linux/pgvoyager-launcher dist/pgvoyager-linux-arm64/
           cp packaging/linux/pgvoyager.desktop dist/pgvoyager-linux-arm64/
           cp packaging/linux/pgvoyager-*.png dist/pgvoyager-linux-arm64/
           chmod +x dist/pgvoyager-linux-arm64/pgvoyager
           chmod +x dist/pgvoyager-linux-arm64/pgvoyager-mcp
           chmod +x dist/pgvoyager-linux-arm64/install.sh
+          chmod +x dist/pgvoyager-linux-arm64/uninstall.sh
           chmod +x dist/pgvoyager-linux-arm64/pgvoyager-launcher
           cd dist && tar -czvf pgvoyager-linux-arm64.tar.gz pgvoyager-linux-arm64 && cd ..
 

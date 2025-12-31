@@ -102,6 +102,31 @@ PGVOYAGER_MODE=production ./pgvoyager
 
 Then open `http://localhost:8081` in your browser.
 
+### Uninstalling
+
+#### Linux
+
+```bash
+# If you kept the install directory
+cd pgvoyager-linux-amd64
+./uninstall.sh
+
+# Or manually
+sudo rm -f /usr/local/bin/pgvoyager /usr/local/bin/pgvoyager-launcher /usr/local/bin/pgvoyager-mcp
+rm -f ~/.local/share/applications/pgvoyager.desktop
+rm -f ~/.local/share/icons/hicolor/*/apps/pgvoyager.png
+```
+
+#### Windows
+
+```powershell
+# Remove Start Menu shortcut
+Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\PgVoyager.lnk"
+
+# Remove install directory
+Remove-Item -Recurse "$env:LOCALAPPDATA\PgVoyager"
+```
+
 ### Building from Source
 
 **Prerequisites for building:**

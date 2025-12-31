@@ -78,53 +78,6 @@ jobs:
             releases/
             packaging/
 
-  package-macos:
-    needs: build
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-
-      - name: Generate macOS icns
-        run: |
-          # Convert iconset to icns using iconutil (macOS only)
-          if [ -d "packaging/macos/pgvoyager.iconset" ]; then
-            iconutil -c icns -o packaging/macos/PgVoyager.app/Contents/Resources/pgvoyager.icns packaging/macos/pgvoyager.iconset
-          fi
-
-      - name: Create macOS packages
-        run: |
-          mkdir -p dist
-
-          # macOS AMD64 app bundle
-          cp -r packaging/macos/PgVoyager.app dist/PgVoyager-amd64.app
-          cp releases/pgvoyager-darwin-amd64 dist/PgVoyager-amd64.app/Contents/Resources/pgvoyager
-          cp releases/pgvoyager-mcp-darwin-amd64 dist/PgVoyager-amd64.app/Contents/Resources/pgvoyager-mcp
-          chmod +x dist/PgVoyager-amd64.app/Contents/MacOS/pgvoyager-launcher
-          chmod +x dist/PgVoyager-amd64.app/Contents/Resources/pgvoyager
-          chmod +x dist/PgVoyager-amd64.app/Contents/Resources/pgvoyager-mcp
-          cd dist && zip -r PgVoyager-macos-amd64.zip PgVoyager-amd64.app && cd ..
-
-          # macOS ARM64 app bundle
-          cp -r packaging/macos/PgVoyager.app dist/PgVoyager-arm64.app
-          cp releases/pgvoyager-darwin-arm64 dist/PgVoyager-arm64.app/Contents/Resources/pgvoyager
-          cp releases/pgvoyager-mcp-darwin-arm64 dist/PgVoyager-arm64.app/Contents/Resources/pgvoyager-mcp
-          chmod +x dist/PgVoyager-arm64.app/Contents/MacOS/pgvoyager-launcher
-          chmod +x dist/PgVoyager-arm64.app/Contents/Resources/pgvoyager
-          chmod +x dist/PgVoyager-arm64.app/Contents/Resources/pgvoyager-mcp
-          cd dist && zip -r PgVoyager-macos-arm64.zip PgVoyager-arm64.app && cd ..
-
-      - name: Upload macOS packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-packages
-          path: dist/*.zip
-
   package-linux-windows:
     needs: build
     runs-on: ubuntu-latest
@@ -188,15 +141,9 @@ jobs:
             dist/*.zip
 
   release:
-    needs: [package-macos, package-linux-windows]
+    needs: package-linux-windows
     runs-on: ubuntu-latest
     steps:
-      - name: Download macOS packages
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-packages
-          path: dist/
-
       - name: Download Linux/Windows packages
         uses: actions/download-artifact@v4
         with:
@@ -214,8 +161,6 @@ jobs:
           files: |
             dist/pgvoyager-linux-amd64.tar.gz
             dist/pgvoyager-linux-arm64.tar.gz
-            dist/PgVoyager-macos-amd64.zip
-            dist/PgVoyager-macos-arm64.zip
             dist/pgvoyager-windows-amd64.zip
             releases/pgvoyager-linux-amd64
             releases/pgvoyager-linux-arm64

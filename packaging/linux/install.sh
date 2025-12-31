@@ -7,7 +7,11 @@ INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 ICON_DIR="${HOME}/.local/share/icons/hicolor"
 DESKTOP_DIR="${HOME}/.local/share/applications"
 
+# Get the directory where the script is located (resolve before sudo changes things)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "Installing PgVoyager..."
+echo "Script directory: ${SCRIPT_DIR}"
 
 # Detect architecture
 ARCH=$(uname -m)
@@ -18,26 +22,35 @@ case $ARCH in
 esac
 
 # Download binary if not present
-if [ ! -f "pgvoyager" ] && [ ! -f "${BINARY}" ]; then
+if [ ! -f "${SCRIPT_DIR}/pgvoyager" ] && [ ! -f "${SCRIPT_DIR}/${BINARY}" ]; then
     echo "Downloading ${BINARY}..."
-    curl -L "https://github.com/thelinuxer/pgvoyager/releases/latest/download/${BINARY}" -o pgvoyager
-    chmod +x pgvoyager
+    curl -L "https://github.com/thelinuxer/pgvoyager/releases/latest/download/${BINARY}" -o "${SCRIPT_DIR}/pgvoyager"
+    chmod +x "${SCRIPT_DIR}/pgvoyager"
 fi
 
 # Install binary
 echo "Installing binary to ${INSTALL_DIR}..."
-sudo cp pgvoyager "${INSTALL_DIR}/pgvoyager" 2>/dev/null || cp pgvoyager "${INSTALL_DIR}/pgvoyager"
-sudo chmod +x "${INSTALL_DIR}/pgvoyager" 2>/dev/null || chmod +x "${INSTALL_DIR}/pgvoyager"
-
-# Install launcher script
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "${SCRIPT_DIR}/pgvoyager-launcher" ]; then
-    sudo cp "${SCRIPT_DIR}/pgvoyager-launcher" "${INSTALL_DIR}/pgvoyager-launcher" 2>/dev/null || cp "${SCRIPT_DIR}/pgvoyager-launcher" "${INSTALL_DIR}/pgvoyager-launcher"
-    sudo chmod +x "${INSTALL_DIR}/pgvoyager-launcher" 2>/dev/null || chmod +x "${INSTALL_DIR}/pgvoyager-launcher"
+if [ -f "${SCRIPT_DIR}/pgvoyager" ]; then
+    sudo cp "${SCRIPT_DIR}/pgvoyager" "${INSTALL_DIR}/pgvoyager"
+    sudo chmod 755 "${INSTALL_DIR}/pgvoyager"
 fi
 
-# Install icon
-echo "Installing icon..."
+# Install MCP server
+if [ -f "${SCRIPT_DIR}/pgvoyager-mcp" ]; then
+    echo "Installing MCP server..."
+    sudo cp "${SCRIPT_DIR}/pgvoyager-mcp" "${INSTALL_DIR}/pgvoyager-mcp"
+    sudo chmod 755 "${INSTALL_DIR}/pgvoyager-mcp"
+fi
+
+# Install launcher script
+if [ -f "${SCRIPT_DIR}/pgvoyager-launcher" ]; then
+    echo "Installing launcher..."
+    sudo cp "${SCRIPT_DIR}/pgvoyager-launcher" "${INSTALL_DIR}/pgvoyager-launcher"
+    sudo chmod 755 "${INSTALL_DIR}/pgvoyager-launcher"
+fi
+
+# Install icons (as current user, not sudo)
+echo "Installing icons..."
 mkdir -p "${ICON_DIR}/256x256/apps"
 mkdir -p "${ICON_DIR}/128x128/apps"
 mkdir -p "${ICON_DIR}/64x64/apps"
@@ -45,21 +58,33 @@ mkdir -p "${ICON_DIR}/48x48/apps"
 
 if [ -f "${SCRIPT_DIR}/pgvoyager-256.png" ]; then
     cp "${SCRIPT_DIR}/pgvoyager-256.png" "${ICON_DIR}/256x256/apps/pgvoyager.png"
+    echo "  Installed 256x256 icon"
+fi
+if [ -f "${SCRIPT_DIR}/pgvoyager-128.png" ]; then
     cp "${SCRIPT_DIR}/pgvoyager-128.png" "${ICON_DIR}/128x128/apps/pgvoyager.png"
+    echo "  Installed 128x128 icon"
+fi
+if [ -f "${SCRIPT_DIR}/pgvoyager-64.png" ]; then
     cp "${SCRIPT_DIR}/pgvoyager-64.png" "${ICON_DIR}/64x64/apps/pgvoyager.png"
+    echo "  Installed 64x64 icon"
+fi
+if [ -f "${SCRIPT_DIR}/pgvoyager-48.png" ]; then
     cp "${SCRIPT_DIR}/pgvoyager-48.png" "${ICON_DIR}/48x48/apps/pgvoyager.png"
+    echo "  Installed 48x48 icon"
 fi
 
-# Install desktop entry
+# Install desktop entry (as current user)
 echo "Installing desktop entry..."
 mkdir -p "${DESKTOP_DIR}"
 if [ -f "${SCRIPT_DIR}/pgvoyager.desktop" ]; then
     cp "${SCRIPT_DIR}/pgvoyager.desktop" "${DESKTOP_DIR}/pgvoyager.desktop"
+    echo "  Installed desktop entry"
 fi
 
-# Update icon cache
+# Update caches
 gtk-update-icon-cache "${ICON_DIR}" 2>/dev/null || true
 update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
 
+echo ""
 echo "PgVoyager installed successfully!"
 echo "You can now launch it from your application menu or run: pgvoyager-launcher"

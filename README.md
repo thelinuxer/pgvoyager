@@ -43,6 +43,14 @@ Write and execute SQL with a full-featured editor powered by CodeMirror. Feature
   <img src="docs/screenshots/query-editor.png" alt="Query Editor" width="100%">
 </p>
 
+### Foreign Key Preview
+
+Hover over any foreign key value to instantly see the referenced record. No more jumping between tables to understand relationships.
+
+<p align="center">
+  <img src="docs/screenshots/fk-preview.png" alt="Foreign Key Preview" width="100%">
+</p>
+
 ### Claude Code Terminal
 
 The star of the show. An embedded Claude Code terminal with MCP integration that can explore your database schema, write SQL queries directly into the editor, execute queries and analyze results, and help you understand your data.

@@ -13,6 +13,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Installing PgVoyager..."
 echo "Script directory: ${SCRIPT_DIR}"
 
+# Stop any running pgvoyager instance
+if pgrep -f "/usr/local/bin/pgvoyager" > /dev/null 2>&1; then
+    echo "Stopping running PgVoyager instance..."
+    sudo pkill -f "/usr/local/bin/pgvoyager" 2>/dev/null || true
+    sleep 1
+fi
+
 # Detect architecture
 ARCH=$(uname -m)
 case $ARCH in

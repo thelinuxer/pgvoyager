@@ -18,7 +18,7 @@
 	let searchQuery = $state('');
 
 	// Context menu state
-	let contextMenu = $state<{ node: SchemaTreeNode; x: number; y: number } | null>(null);
+	let contextMenu = $state<{ node: SchemaTreeNode; x: number; y: number; menuType: 'table' | 'schema' } | null>(null);
 
 	// Drop table confirmation modal state
 	let dropTableModal = $state<{ schema: string; table: string; cascade: boolean } | null>(null);
@@ -113,9 +113,13 @@
 	}
 
 	function handleContextMenu(e: MouseEvent, node: SchemaTreeNode) {
-		if (node.type !== 'table' || !node.schema) return;
-		e.preventDefault();
-		contextMenu = { node, x: e.clientX, y: e.clientY };
+		if (node.type === 'table' && node.schema) {
+			e.preventDefault();
+			contextMenu = { node, x: e.clientX, y: e.clientY, menuType: 'table' };
+		} else if (node.type === 'schema') {
+			e.preventDefault();
+			contextMenu = { node, x: e.clientX, y: e.clientY, menuType: 'schema' };
+		}
 	}
 
 	function closeContextMenu() {
@@ -154,6 +158,18 @@
 		if (!node.schema) return;
 		const sql = `SELECT *\nFROM "${node.schema}"."${node.name}"\nLIMIT 100;`;
 		tabs.openQuery({ title: `${node.schema}.${node.name}`, initialSql: sql });
+		closeContextMenu();
+	}
+
+	function handleViewTableERD(node: SchemaTreeNode) {
+		if (!node.schema) return;
+		tabs.openTableERD(node.schema, node.name);
+		closeContextMenu();
+	}
+
+	function handleViewSchemaERD(node: SchemaTreeNode) {
+		// For schema nodes, node.name is the schema name
+		tabs.openSchemaERD(node.name);
 		closeContextMenu();
 	}
 
@@ -320,32 +336,44 @@ LIMIT 100;`;
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="context-menu-backdrop" onclick={closeContextMenu}></div>
 	<div class="context-menu" style="left: {contextMenu.x}px; top: {contextMenu.y}px">
-		<button class="context-menu-item" onclick={() => handleShowFirst100(menuNode)}>
-			<Icon name="arrow-up" size={14} />
-			Show first 100 rows
-		</button>
-		<button class="context-menu-item" onclick={() => handleShowLast100(menuNode)}>
-			<Icon name="arrow-down" size={14} />
-			Show last 100 rows
-		</button>
-		<button class="context-menu-item" onclick={() => handleFilterTable(menuNode)}>
-			<Icon name="filter" size={14} />
-			Filter table...
-		</button>
-		<div class="context-menu-separator"></div>
-		<button class="context-menu-item" onclick={() => handleOpenInQuery(menuNode)}>
-			<Icon name="file" size={14} />
-			Open in Query Editor
-		</button>
-		<button class="context-menu-item" onclick={() => handleCopyName(menuNode)}>
-			<Icon name="copy" size={14} />
-			Copy table name
-		</button>
-		<div class="context-menu-separator"></div>
-		<button class="context-menu-item context-menu-item-danger" onclick={() => handleDropTableClick(menuNode)}>
-			<Icon name="trash" size={14} />
-			Drop table...
-		</button>
+		{#if contextMenu.menuType === 'table'}
+			<button class="context-menu-item" onclick={() => handleShowFirst100(menuNode)}>
+				<Icon name="arrow-up" size={14} />
+				Show first 100 rows
+			</button>
+			<button class="context-menu-item" onclick={() => handleShowLast100(menuNode)}>
+				<Icon name="arrow-down" size={14} />
+				Show last 100 rows
+			</button>
+			<button class="context-menu-item" onclick={() => handleFilterTable(menuNode)}>
+				<Icon name="filter" size={14} />
+				Filter table...
+			</button>
+			<div class="context-menu-separator"></div>
+			<button class="context-menu-item" onclick={() => handleViewTableERD(menuNode)}>
+				<Icon name="share-2" size={14} />
+				View ERD
+			</button>
+			<div class="context-menu-separator"></div>
+			<button class="context-menu-item" onclick={() => handleOpenInQuery(menuNode)}>
+				<Icon name="file" size={14} />
+				Open in Query Editor
+			</button>
+			<button class="context-menu-item" onclick={() => handleCopyName(menuNode)}>
+				<Icon name="copy" size={14} />
+				Copy table name
+			</button>
+			<div class="context-menu-separator"></div>
+			<button class="context-menu-item context-menu-item-danger" onclick={() => handleDropTableClick(menuNode)}>
+				<Icon name="trash" size={14} />
+				Drop table...
+			</button>
+		{:else if contextMenu.menuType === 'schema'}
+			<button class="context-menu-item" onclick={() => handleViewSchemaERD(menuNode)}>
+				<Icon name="share-2" size={14} />
+				View Schema ERD
+			</button>
+		{/if}
 	</div>
 {/if}
 
@@ -412,13 +440,14 @@ LIMIT 100;`;
 				<span class="tree-badge">{node.data.rowCount.toLocaleString()}</span>
 			{/if}
 		</button>
-		{#if node.type === 'table'}
+		{#if node.type === 'table' || node.type === 'schema'}
 			<button
 				class="tree-item-menu"
 				onclick={(e) => {
 					e.stopPropagation();
 					const rect = e.currentTarget.getBoundingClientRect();
-					contextMenu = { node, x: rect.right, y: rect.top };
+					const menuType = node.type === 'schema' ? 'schema' : 'table';
+					contextMenu = { node, x: rect.right, y: rect.top, menuType };
 				}}
 				title="More options"
 			>

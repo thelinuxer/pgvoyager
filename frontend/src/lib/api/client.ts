@@ -7,6 +7,7 @@ import type {
 	Constraint,
 	Index,
 	ForeignKey,
+	SchemaRelationship,
 	View,
 	Function,
 	Sequence,
@@ -114,6 +115,9 @@ export const schemaApi = {
 
 	getForeignKeys: (connId: string, schema: string, table: string) =>
 		fetchAPI<ForeignKey[]>(`/schema/${connId}/tables/${schema}/${table}/foreign-keys`),
+
+	getSchemaRelationships: (connId: string, schema: string) =>
+		fetchAPI<SchemaRelationship[]>(`/schema/${connId}/schemas/${schema}/relationships`),
 
 	listViews: (connId: string, schema?: string) => {
 		const params = schema ? `?schema=${encodeURIComponent(schema)}` : '';

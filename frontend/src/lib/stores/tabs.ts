@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { Tab, TableLocation } from '$lib/types';
+import type { Tab, TableLocation, ERDLocation } from '$lib/types';
 
 function generateTabId(): string {
 	return `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -224,6 +224,185 @@ function createTabsStore() {
 				activeTabId.set(newTab.id);
 				return newTabs;
 			});
+		},
+
+		// Open ERD for a specific table (table-centered view)
+		openTableERD: (schema: string, table: string) => {
+			update((tabs) => {
+				const initialLocation: ERDLocation = { schema, centeredTable: table };
+				const newTab: Tab = {
+					id: generateTabId(),
+					type: 'erd',
+					title: `ERD: ${schema}.${table}`,
+					schema,
+					table,
+					isPinned: false,
+					erdNavigationStack: [initialLocation],
+					erdNavigationIndex: 0
+				};
+
+				const unpinnedIndex = tabs.findIndex((t) => !t.isPinned);
+				let newTabs: Tab[];
+
+				if (unpinnedIndex === -1) {
+					newTabs = [...tabs, newTab];
+				} else {
+					newTabs = [...tabs];
+					newTabs[unpinnedIndex] = newTab;
+				}
+
+				activeTabId.set(newTab.id);
+				return newTabs;
+			});
+		},
+
+		// Open ERD for entire schema (full schema view)
+		openSchemaERD: (schema: string) => {
+			update((tabs) => {
+				const initialLocation: ERDLocation = { schema };
+				const newTab: Tab = {
+					id: generateTabId(),
+					type: 'erd',
+					title: `ERD: ${schema}`,
+					schema,
+					isPinned: false,
+					erdNavigationStack: [initialLocation],
+					erdNavigationIndex: 0
+				};
+
+				const unpinnedIndex = tabs.findIndex((t) => !t.isPinned);
+				let newTabs: Tab[];
+
+				if (unpinnedIndex === -1) {
+					newTabs = [...tabs, newTab];
+				} else {
+					newTabs = [...tabs];
+					newTabs[unpinnedIndex] = newTab;
+				}
+
+				activeTabId.set(newTab.id);
+				return newTabs;
+			});
+		},
+
+		// Navigate to a different table within ERD tab (push to stack)
+		navigateERD: (tabId: string, schema: string, table?: string) => {
+			update((tabs) => {
+				return tabs.map((t) => {
+					if (t.id !== tabId || t.type !== 'erd') return t;
+
+					const stack = t.erdNavigationStack || [];
+					const index = t.erdNavigationIndex ?? 0;
+
+					// Truncate forward history and add new location
+					const newStack = stack.slice(0, index + 1);
+					const newLocation: ERDLocation = { schema, centeredTable: table };
+					newStack.push(newLocation);
+
+					// Limit stack to 50 entries
+					if (newStack.length > 50) {
+						newStack.shift();
+					}
+
+					return {
+						...t,
+						schema,
+						table,
+						title: table ? `ERD: ${schema}.${table}` : `ERD: ${schema}`,
+						erdNavigationStack: newStack,
+						erdNavigationIndex: newStack.length - 1
+					};
+				});
+			});
+		},
+
+		// Go back in ERD navigation stack
+		navigateERDBack: (tabId: string): ERDLocation | null => {
+			let targetLocation: ERDLocation | null = null;
+
+			update((tabs) => {
+				return tabs.map((t) => {
+					if (t.id !== tabId || t.type !== 'erd') return t;
+
+					const stack = t.erdNavigationStack || [];
+					const index = t.erdNavigationIndex ?? 0;
+
+					if (index > 0) {
+						const newIndex = index - 1;
+						targetLocation = stack[newIndex];
+						return {
+							...t,
+							schema: targetLocation.schema,
+							table: targetLocation.centeredTable,
+							title: targetLocation.centeredTable
+								? `ERD: ${targetLocation.schema}.${targetLocation.centeredTable}`
+								: `ERD: ${targetLocation.schema}`,
+							erdNavigationIndex: newIndex
+						};
+					}
+					return t;
+				});
+			});
+
+			return targetLocation;
+		},
+
+		// Go forward in ERD navigation stack
+		navigateERDForward: (tabId: string): ERDLocation | null => {
+			let targetLocation: ERDLocation | null = null;
+
+			update((tabs) => {
+				return tabs.map((t) => {
+					if (t.id !== tabId || t.type !== 'erd') return t;
+
+					const stack = t.erdNavigationStack || [];
+					const index = t.erdNavigationIndex ?? 0;
+
+					if (index < stack.length - 1) {
+						const newIndex = index + 1;
+						targetLocation = stack[newIndex];
+						return {
+							...t,
+							schema: targetLocation.schema,
+							table: targetLocation.centeredTable,
+							title: targetLocation.centeredTable
+								? `ERD: ${targetLocation.schema}.${targetLocation.centeredTable}`
+								: `ERD: ${targetLocation.schema}`,
+							erdNavigationIndex: newIndex
+						};
+					}
+					return t;
+				});
+			});
+
+			return targetLocation;
+		},
+
+		// Check if can go back in ERD navigation
+		canNavigateERDBack: (tabId: string): boolean => {
+			const allTabs = get({ subscribe });
+			const tab = allTabs.find((t) => t.id === tabId);
+			if (!tab || tab.type !== 'erd') return false;
+			return (tab.erdNavigationIndex ?? 0) > 0;
+		},
+
+		// Check if can go forward in ERD navigation
+		canNavigateERDForward: (tabId: string): boolean => {
+			const allTabs = get({ subscribe });
+			const tab = allTabs.find((t) => t.id === tabId);
+			if (!tab || tab.type !== 'erd') return false;
+			const stack = tab.erdNavigationStack || [];
+			return (tab.erdNavigationIndex ?? 0) < stack.length - 1;
+		},
+
+		// Get current ERD location for a tab
+		getCurrentERDLocation: (tabId: string): ERDLocation | null => {
+			const allTabs = get({ subscribe });
+			const tab = allTabs.find((t) => t.id === tabId);
+			if (!tab || tab.type !== 'erd') return null;
+			const stack = tab.erdNavigationStack || [];
+			const index = tab.erdNavigationIndex ?? 0;
+			return stack[index] || null;
 		},
 
 		// Handle FK click - respects tab pinning behavior

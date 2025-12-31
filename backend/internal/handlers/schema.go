@@ -504,6 +504,80 @@ func GetForeignKeys(c *gin.Context) {
 	c.JSON(http.StatusOK, fks)
 }
 
+// GetSchemaRelationships returns all foreign key relationships within a schema
+// Used for ERD visualization
+func GetSchemaRelationships(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	schema := c.Param("schema")
+
+	query := `
+		SELECT
+			n.nspname as source_schema,
+			c.relname as source_table,
+			array_agg(a.attname ORDER BY array_position(con.conkey, a.attnum)) as source_columns,
+			nf.nspname as target_schema,
+			cf.relname as target_table,
+			array_agg(af.attname ORDER BY array_position(con.confkey, af.attnum)) as target_columns,
+			con.conname as constraint_name,
+			CASE con.confupdtype
+				WHEN 'a' THEN 'NO ACTION'
+				WHEN 'r' THEN 'RESTRICT'
+				WHEN 'c' THEN 'CASCADE'
+				WHEN 'n' THEN 'SET NULL'
+				WHEN 'd' THEN 'SET DEFAULT'
+			END as on_update,
+			CASE con.confdeltype
+				WHEN 'a' THEN 'NO ACTION'
+				WHEN 'r' THEN 'RESTRICT'
+				WHEN 'c' THEN 'CASCADE'
+				WHEN 'n' THEN 'SET NULL'
+				WHEN 'd' THEN 'SET DEFAULT'
+			END as on_delete
+		FROM pg_constraint con
+		JOIN pg_class c ON c.oid = con.conrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		JOIN pg_class cf ON cf.oid = con.confrelid
+		JOIN pg_namespace nf ON nf.oid = cf.relnamespace
+		JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(con.conkey)
+		JOIN pg_attribute af ON af.attrelid = cf.oid AND af.attnum = ANY(con.confkey)
+		WHERE con.contype = 'f'
+		  AND (n.nspname = $1 OR nf.nspname = $1)
+		GROUP BY con.oid, n.nspname, c.relname, nf.nspname, cf.relname, con.conname, con.confupdtype, con.confdeltype
+		ORDER BY c.relname, con.conname
+	`
+
+	rows, err := pool.Query(ctx, query, schema)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var relationships []models.SchemaRelationship
+	for rows.Next() {
+		var rel models.SchemaRelationship
+		if err := rows.Scan(
+			&rel.SourceSchema, &rel.SourceTable, &rel.SourceColumns,
+			&rel.TargetSchema, &rel.TargetTable, &rel.TargetColumns,
+			&rel.ConstraintName, &rel.OnUpdate, &rel.OnDelete,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		relationships = append(relationships, rel)
+	}
+
+	c.JSON(http.StatusOK, relationships)
+}
+
 func ListViews(c *gin.Context) {
 	manager, connId, ok := getPool(c)
 	if !ok {

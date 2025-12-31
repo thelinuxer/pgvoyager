@@ -75,6 +75,19 @@ type ForeignKey struct {
 	OnDelete      string   `json:"onDelete"`
 }
 
+// SchemaRelationship represents a foreign key relationship for ERD visualization
+type SchemaRelationship struct {
+	SourceSchema   string   `json:"sourceSchema"`
+	SourceTable    string   `json:"sourceTable"`
+	SourceColumns  []string `json:"sourceColumns"`
+	TargetSchema   string   `json:"targetSchema"`
+	TargetTable    string   `json:"targetTable"`
+	TargetColumns  []string `json:"targetColumns"`
+	ConstraintName string   `json:"constraintName"`
+	OnUpdate       string   `json:"onUpdate"`
+	OnDelete       string   `json:"onDelete"`
+}
+
 type View struct {
 	Schema     string `json:"schema"`
 	Name       string `json:"name"`

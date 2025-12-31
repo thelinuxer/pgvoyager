@@ -6,6 +6,7 @@
 	import FunctionViewer from './FunctionViewer.svelte';
 	import SequenceViewer from './SequenceViewer.svelte';
 	import TypeViewer from './TypeViewer.svelte';
+	import ERDViewer from './ERDViewer.svelte';
 
 	interface Props {
 		onSaveQuery?: (sql: string) => void;
@@ -28,6 +29,8 @@
 			<SequenceViewer tab={$activeTab} />
 		{:else if $activeTab.type === 'type'}
 			<TypeViewer tab={$activeTab} />
+		{:else if $activeTab.type === 'erd'}
+			<ERDViewer tab={$activeTab} />
 		{/if}
 	{:else}
 		<div class="no-tab">

@@ -96,6 +96,19 @@ export interface ForeignKey {
 	onDelete: string;
 }
 
+// SchemaRelationship represents a foreign key relationship for ERD visualization
+export interface SchemaRelationship {
+	sourceSchema: string;
+	sourceTable: string;
+	sourceColumns: string[];
+	targetSchema: string;
+	targetTable: string;
+	targetColumns: string[];
+	constraintName: string;
+	onUpdate: string;
+	onDelete: string;
+}
+
 export interface View {
 	schema: string;
 	name: string;
@@ -204,7 +217,13 @@ export interface CrudResponse {
 	insertedRow?: Record<string, unknown>;
 }
 
-export type TabType = 'table' | 'query' | 'view' | 'function' | 'sequence' | 'type';
+export type TabType = 'table' | 'query' | 'view' | 'function' | 'sequence' | 'type' | 'erd';
+
+// ERD navigation location
+export interface ERDLocation {
+	schema: string;
+	centeredTable?: string; // If undefined, show full schema view
+}
 
 export interface TableLocation {
 	schema: string;
@@ -237,6 +256,9 @@ export interface Tab {
 	navigationIndex?: number;
 	// For query tabs
 	initialSql?: string;
+	// For ERD tabs
+	erdNavigationStack?: ERDLocation[];
+	erdNavigationIndex?: number;
 }
 
 export interface SchemaTreeNode {

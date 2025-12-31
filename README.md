@@ -51,6 +51,18 @@ Hover over any foreign key value to instantly see the referenced record. No more
   <img src="docs/screenshots/fk-preview.png" alt="Foreign Key Preview" width="100%">
 </p>
 
+### ERD Visualization
+
+Visualize your database relationships with interactive Entity Relationship Diagrams. Right-click any table to see its direct relationships in a centered view, or view the entire schema at once. Click nodes to navigate between tables, double-click to open them, and export diagrams as PNG, SVG, JSON, or SQL DDL.
+
+<p align="center">
+  <img src="docs/screenshots/erd-schema.png" alt="Full Schema ERD" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/erd-table.png" alt="Table-Centered ERD" width="100%">
+</p>
+
 ### Claude Code Terminal
 
 The star of the show. An embedded Claude Code terminal with MCP integration that can explore your database schema, write SQL queries directly into the editor, execute queries and analyze results, and help you understand your data.

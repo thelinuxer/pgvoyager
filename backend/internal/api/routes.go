@@ -32,6 +32,7 @@ func RegisterRoutes(r *gin.Engine) {
 			schema.GET("/tables/:schema/:table/constraints", handlers.GetTableConstraints)
 			schema.GET("/tables/:schema/:table/indexes", handlers.GetTableIndexes)
 			schema.GET("/tables/:schema/:table/foreign-keys", handlers.GetForeignKeys)
+			schema.GET("/schemas/:schema/relationships", handlers.GetSchemaRelationships)
 			schema.GET("/views", handlers.ListViews)
 			schema.GET("/functions", handlers.ListFunctions)
 			schema.GET("/sequences", handlers.ListSequences)

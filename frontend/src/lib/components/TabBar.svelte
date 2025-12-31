@@ -43,6 +43,8 @@
 		<Icon name="file-code" size={12} />
 	{:else if tab.type === 'view'}
 		<Icon name="eye" size={12} />
+	{:else if tab.type === 'erd'}
+		<Icon name="share-2" size={12} />
 	{:else}
 		<Icon name="table" size={12} />
 	{/if}

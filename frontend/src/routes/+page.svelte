@@ -29,11 +29,9 @@
 		showConnectionModal = true;
 	}
 
-	function handleEditConnection() {
-		if ($activeConnection) {
-			editConnection = $activeConnection;
-			showConnectionModal = true;
-		}
+	function handleEditConnection(connection: Connection) {
+		editConnection = connection;
+		showConnectionModal = true;
 	}
 
 	function handleCloseModal() {

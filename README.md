@@ -59,6 +59,15 @@ The star of the show. An embedded Claude Code terminal with MCP integration that
   <img src="docs/screenshots/claude-terminal.png" alt="Claude Terminal" width="100%">
 </p>
 
+### Connection Management
+
+Easily manage your database connections. Click the edit icon next to any connection to modify settings or delete connections you no longer need - even if they can't connect.
+
+<p align="center">
+  <img src="docs/screenshots/connection-dropdown.png" alt="Connection Dropdown" width="50%">
+  <img src="docs/screenshots/edit-connection.png" alt="Edit Connection" width="50%">
+</p>
+
 ## Installation
 
 ### Prerequisites

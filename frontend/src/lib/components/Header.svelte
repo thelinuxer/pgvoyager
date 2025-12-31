@@ -3,11 +3,13 @@
 	import { connectionApi, updateApi, type UpdateCheckResponse } from '$lib/api/client';
 	import { layout } from '$lib/stores/layout';
 	import Icon from '$lib/icons/Icon.svelte';
+	import ConnectionDropdown from './ConnectionDropdown.svelte';
 	import { onMount } from 'svelte';
+	import type { Connection } from '$lib/types';
 
 	interface Props {
 		onNewConnection: () => void;
-		onEditConnection: () => void;
+		onEditConnection: (connection: Connection) => void;
 		onSettings: () => void;
 		onToggleClaude?: () => void;
 	}
@@ -89,30 +91,11 @@
 	</div>
 
 	<div class="header-center">
-		<div class="connection-wrapper" class:connecting={isConnecting} class:error={connectionError}>
-			{#if isConnecting}
-				<Icon name="refresh" size={14} class="spinning" />
-			{:else}
-				<Icon name="database" size={14} />
-			{/if}
-			<select
-				class="connection-select"
-				value={$activeConnectionId || ''}
-				disabled={isConnecting}
-				onchange={(e) => {
-					const id = e.currentTarget.value;
-					if (id) handleConnect(id);
-				}}
-			>
-				<option value="">{isConnecting ? 'Connecting...' : 'Select Connection...'}</option>
-				{#each $connections as conn}
-					<option value={conn.id}>
-						{conn.name} ({conn.host}:{conn.port}/{conn.database})
-						{conn.isConnected ? '●' : ''}
-					</option>
-				{/each}
-			</select>
-		</div>
+		<ConnectionDropdown
+			{isConnecting}
+			onConnect={handleConnect}
+			onEdit={onEditConnection}
+		/>
 
 		{#if connectionError}
 			<div class="connection-error" title={connectionError}>
@@ -122,9 +105,6 @@
 		{/if}
 
 		{#if $activeConnection}
-			<button class="btn btn-sm btn-ghost" onclick={onEditConnection} title="Edit Connection">
-				<Icon name="edit" size={14} />
-			</button>
 			<button class="btn btn-sm btn-ghost" onclick={handleDisconnect} title="Disconnect">
 				<Icon name="power" size={14} />
 			</button>
@@ -230,45 +210,6 @@
 
 	.version-badge.update-available:hover {
 		background: rgba(137, 180, 250, 0.2);
-	}
-
-	.connection-wrapper {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 0 12px;
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
-	}
-
-	.connection-wrapper svg {
-		color: var(--color-text-muted);
-		flex-shrink: 0;
-	}
-
-	.connection-select {
-		min-width: 280px;
-		padding: 6px 8px;
-		background: transparent;
-		border: none;
-	}
-
-	.connection-select:focus {
-		outline: none;
-	}
-
-	.connection-select:disabled {
-		opacity: 0.7;
-		cursor: not-allowed;
-	}
-
-	.connection-wrapper.connecting {
-		border-color: var(--color-primary);
-	}
-
-	.connection-wrapper.error {
-		border-color: var(--color-error);
 	}
 
 	.connection-error {

@@ -63,6 +63,14 @@ Visualize your database relationships with interactive Entity Relationship Diagr
   <img src="docs/screenshots/erd-table.png" alt="Table-Centered ERD" width="100%">
 </p>
 
+### Database Analysis
+
+Analyze your database health with a single click. PgVoyager identifies potential issues like missing indexes on foreign keys, unused indexes, table bloat, missing primary keys, and more. Each issue includes a severity level, description, and a suggested SQL fix you can copy with one click.
+
+<p align="center">
+  <img src="docs/screenshots/analysis.png" alt="Database Analysis" width="100%">
+</p>
+
 ### Claude Code Terminal
 
 The star of the show. An embedded Claude Code terminal with MCP integration that can explore your database schema, write SQL queries directly into the editor, execute queries and analyze results, and help you understand your data.

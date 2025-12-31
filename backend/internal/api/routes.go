@@ -60,6 +60,9 @@ func RegisterRoutes(r *gin.Engine) {
 			query.POST("/explain", handlers.ExplainQuery)
 		}
 
+		// Database analysis
+		api.GET("/analysis/:connId", handlers.RunAnalysis)
+
 		// Saved queries
 		queries := api.Group("/queries")
 		{

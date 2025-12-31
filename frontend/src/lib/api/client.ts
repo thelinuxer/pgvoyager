@@ -20,7 +20,8 @@ import type {
 	InsertRowRequest,
 	UpdateRowRequest,
 	DeleteRowRequest,
-	CrudResponse
+	CrudResponse,
+	AnalysisResult
 } from '$lib/types';
 
 // In production, the frontend is served from the same origin as the API
@@ -230,6 +231,11 @@ export const queryApi = {
 			method: 'POST',
 			body: JSON.stringify({ sql, params })
 		})
+};
+
+// Analysis API
+export const analysisApi = {
+	run: (connId: string) => fetchAPI<AnalysisResult>(`/analysis/${connId}`)
 };
 
 // Saved Queries API

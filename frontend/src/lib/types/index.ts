@@ -217,7 +217,45 @@ export interface CrudResponse {
 	insertedRow?: Record<string, unknown>;
 }
 
-export type TabType = 'table' | 'query' | 'view' | 'function' | 'sequence' | 'type' | 'erd';
+export type TabType = 'table' | 'query' | 'view' | 'function' | 'sequence' | 'type' | 'erd' | 'analysis';
+
+// Database Analysis types
+export interface AnalysisResult {
+	summary: AnalysisSummary;
+	categories: AnalysisCategory[];
+	stats: DatabaseStats;
+}
+
+export interface AnalysisSummary {
+	critical: number;
+	warning: number;
+	info: number;
+	ok: number;
+}
+
+export interface AnalysisCategory {
+	name: string;
+	icon: string;
+	issues: AnalysisIssue[];
+}
+
+export interface AnalysisIssue {
+	severity: 'critical' | 'warning' | 'info';
+	title: string;
+	description: string;
+	table?: string;
+	column?: string;
+	suggestion?: string;
+	impact?: string;
+}
+
+export interface DatabaseStats {
+	databaseSize: string;
+	tableCount: number;
+	indexCount: number;
+	cacheHitRatio: number;
+	activeConnections: number;
+}
 
 // ERD navigation location
 export interface ERDLocation {

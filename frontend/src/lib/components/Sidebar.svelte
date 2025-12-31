@@ -268,6 +268,9 @@ LIMIT 100;`;
 			<button class="btn btn-sm btn-ghost" onclick={onShowHistory} title="Query History">
 				<Icon name="clock" size={14} />
 			</button>
+			<button class="btn btn-sm btn-ghost" onclick={() => tabs.openAnalysis()} title="Analyze Database" disabled={!$activeConnection}>
+				<Icon name="activity" size={14} />
+			</button>
 			<button class="btn btn-sm btn-ghost" onclick={() => tabs.openQuery()} title="New Query">
 				<Icon name="file-code" size={14} />
 			</button>

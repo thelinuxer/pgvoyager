@@ -285,6 +285,38 @@ function createTabsStore() {
 			});
 		},
 
+		// Open database analysis tab
+		openAnalysis: () => {
+			update((tabs) => {
+				// Check if analysis tab already exists
+				const existing = tabs.find((t) => t.type === 'analysis');
+				if (existing) {
+					activeTabId.set(existing.id);
+					return tabs;
+				}
+
+				const newTab: Tab = {
+					id: generateTabId(),
+					type: 'analysis',
+					title: 'Database Analysis',
+					isPinned: false
+				};
+
+				const unpinnedIndex = tabs.findIndex((t) => !t.isPinned);
+				let newTabs: Tab[];
+
+				if (unpinnedIndex === -1) {
+					newTabs = [...tabs, newTab];
+				} else {
+					newTabs = [...tabs];
+					newTabs[unpinnedIndex] = newTab;
+				}
+
+				activeTabId.set(newTab.id);
+				return newTabs;
+			});
+		},
+
 		// Navigate to a different table within ERD tab (push to stack)
 		navigateERD: (tabId: string, schema: string, table?: string) => {
 			update((tabs) => {

@@ -142,27 +142,27 @@
         <div class="container">
             <h2 class="section-title">Screenshots</h2>
             <div class="screenshot-gallery">
-                <div class="screenshot-item">
+                <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
                     <img src="screenshots/schema-browser.png" alt="Schema Browser" loading="lazy">
                     <h4>Schema Browser</h4>
                 </div>
-                <div class="screenshot-item">
+                <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
                     <img src="screenshots/query-editor.png" alt="Query Editor" loading="lazy">
                     <h4>Query Editor</h4>
                 </div>
-                <div class="screenshot-item">
+                <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
                     <img src="screenshots/erd-schema.png" alt="ERD Visualization" loading="lazy">
                     <h4>ERD Visualization</h4>
                 </div>
-                <div class="screenshot-item">
+                <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
                     <img src="screenshots/erd-table.png" alt="Table-Centered ERD" loading="lazy">
                     <h4>Table-Centered ERD</h4>
                 </div>
-                <div class="screenshot-item">
+                <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
                     <img src="screenshots/fk-preview.png" alt="Foreign Key Preview" loading="lazy">
                     <h4>Foreign Key Preview</h4>
                 </div>
-                <div class="screenshot-item">
+                <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
                     <img src="screenshots/claude-terminal.png" alt="Claude Terminal" loading="lazy">
                     <h4>Claude Code Terminal</h4>
                 </div>
@@ -225,6 +225,13 @@ PGVOYAGER_MODE=production ./pgvoyager</code></pre>
         </div>
     </footer>
 
+    <!-- Lightbox Modal -->
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img class="lightbox-image" id="lightbox-img" src="" alt="">
+        <div class="lightbox-caption" id="lightbox-caption"></div>
+    </div>
+
     <script>
         // Tab switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -245,6 +252,28 @@ PGVOYAGER_MODE=production ./pgvoyager</code></pre>
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             });
+        });
+
+        // Lightbox
+        function openLightbox(img) {
+            const lightbox = document.getElementById('lightbox');
+            const lightboxImg = document.getElementById('lightbox-img');
+            const lightboxCaption = document.getElementById('lightbox-caption');
+            lightbox.classList.add('active');
+            lightboxImg.src = img.src;
+            lightboxCaption.textContent = img.alt;
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            const lightbox = document.getElementById('lightbox');
+            lightbox.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeLightbox();
         });
     </script>
 </body>

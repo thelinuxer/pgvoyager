@@ -84,6 +84,16 @@ body {
     color: var(--color-text);
 }
 
+.github-mobile {
+    display: none;
+    color: var(--color-text);
+    transition: color var(--transition);
+}
+
+.github-mobile:hover {
+    color: var(--color-primary);
+}
+
 /* Buttons */
 .btn {
     display: inline-flex;
@@ -424,6 +434,10 @@ body {
 @media (max-width: 768px) {
     .nav-links {
         display: none;
+    }
+
+    .github-mobile {
+        display: block;
     }
 
     .hero h1 {

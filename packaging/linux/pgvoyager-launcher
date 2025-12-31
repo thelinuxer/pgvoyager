@@ -1,6 +1,30 @@
 #!/bin/bash
 # PgVoyager Launcher - starts server and opens browser
 
+# Source user's shell profile to get full PATH (needed for npm global binaries like claude)
+if [ -f "$HOME/.bashrc" ]; then
+    source "$HOME/.bashrc" 2>/dev/null
+elif [ -f "$HOME/.bash_profile" ]; then
+    source "$HOME/.bash_profile" 2>/dev/null
+elif [ -f "$HOME/.zshrc" ]; then
+    source "$HOME/.zshrc" 2>/dev/null
+elif [ -f "$HOME/.profile" ]; then
+    source "$HOME/.profile" 2>/dev/null
+fi
+
+# Load nvm if available (common Node.js version manager)
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    source "$NVM_DIR/nvm.sh" 2>/dev/null
+fi
+
+# Also add common npm global bin paths if not already in PATH
+for npm_path in "$HOME/.npm-global/bin" "$HOME/.local/bin" "$HOME/node_modules/.bin" "/usr/local/bin"; do
+    if [ -d "$npm_path" ] && [[ ":$PATH:" != *":$npm_path:"* ]]; then
+        export PATH="$npm_path:$PATH"
+    fi
+done
+
 PGVOYAGER_BIN="${PGVOYAGER_BIN:-/usr/local/bin/pgvoyager}"
 PGVOYAGER_PORT="${PGVOYAGER_PORT:-8081}"
 PGVOYAGER_URL="http://localhost:${PGVOYAGER_PORT}"

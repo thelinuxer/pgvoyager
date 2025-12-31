@@ -129,6 +129,7 @@
 			{:else}
 				<div class="welcome">
 					<div class="welcome-content">
+						<img src="/logo.svg" alt="PgVoyager" class="welcome-logo" />
 						<h1>PgVoyager</h1>
 						<p>Navigate your PostgreSQL databases with ease</p>
 						<button class="btn btn-primary" onclick={handleNewConnection}>
@@ -196,6 +197,12 @@
 
 	.welcome-content {
 		text-align: center;
+	}
+
+	.welcome-logo {
+		width: 160px;
+		height: auto;
+		margin-bottom: 1rem;
 	}
 
 	.welcome-content h1 {

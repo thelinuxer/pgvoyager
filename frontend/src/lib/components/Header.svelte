@@ -59,7 +59,7 @@
 <header class="header">
 	<div class="header-left">
 		<div class="logo">
-			<Icon name="layers" size={24} class="logo-icon" />
+			<img src="/logo.svg" alt="PgVoyager" class="logo-icon" />
 			<span class="logo-text">PgVoyager</span>
 		</div>
 	</div>
@@ -174,7 +174,8 @@
 	}
 
 	.logo-icon {
-		color: var(--color-primary);
+		height: 28px;
+		width: auto;
 	}
 
 	.logo-text {

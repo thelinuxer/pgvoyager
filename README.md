@@ -54,6 +54,37 @@ PgVoyager is a modern PostgreSQL client that lets you:
 
 Download the latest release for your platform from [GitHub Releases](https://github.com/thelinuxer/pgvoyager/releases):
 
+#### Linux (Recommended)
+
+Download the packaged release with desktop integration:
+
+```bash
+# Download and extract
+curl -L https://github.com/thelinuxer/pgvoyager/releases/latest/download/pgvoyager-linux-amd64.tar.gz | tar xz
+cd pgvoyager-linux-amd64
+
+# Run the installer (adds app icon and desktop entry)
+./install.sh
+
+# Launch from your application menu, or run:
+pgvoyager-launcher
+```
+
+#### Windows
+
+Download `pgvoyager-windows-amd64.zip` from the releases page, extract it, and run:
+
+```powershell
+# Run the installer (adds Start Menu shortcut)
+.\install.ps1
+
+# Or just double-click pgvoyager-launcher.bat
+```
+
+#### macOS / Raw Binaries
+
+For macOS or if you prefer raw binaries without installers:
+
 | Platform | Binary |
 |----------|--------|
 | Linux (x64) | `pgvoyager-linux-amd64` |
@@ -63,11 +94,9 @@ Download the latest release for your platform from [GitHub Releases](https://git
 | Windows | `pgvoyager-windows-amd64.exe` |
 
 ```bash
-# Linux/macOS example
-curl -L https://github.com/thelinuxer/pgvoyager/releases/latest/download/pgvoyager-linux-amd64 -o pgvoyager
+# Download and run directly
+curl -L https://github.com/thelinuxer/pgvoyager/releases/latest/download/pgvoyager-darwin-arm64 -o pgvoyager
 chmod +x pgvoyager
-
-# Run it
 PGVOYAGER_MODE=production ./pgvoyager
 ```
 

@@ -69,15 +69,14 @@ func (m *ConnectionManager) loadConnections() error {
 	return nil
 }
 
-func (m *ConnectionManager) saveConnections() error {
-	m.mu.RLock()
+// saveConnectionsLocked saves connections to disk. Caller must hold the lock.
+func (m *ConnectionManager) saveConnectionsLocked() error {
 	connections := make([]*models.Connection, 0, len(m.connections))
 	for _, conn := range m.connections {
 		// Don't save password in plain text - this should use secure storage
 		connCopy := *conn
 		connections = append(connections, &connCopy)
 	}
-	m.mu.RUnlock()
 
 	data, err := json.MarshalIndent(connections, "", "  ")
 	if err != nil {
@@ -85,6 +84,12 @@ func (m *ConnectionManager) saveConnections() error {
 	}
 
 	return os.WriteFile(m.configPath, data, 0600)
+}
+
+func (m *ConnectionManager) saveConnections() error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.saveConnectionsLocked()
 }
 
 func (m *ConnectionManager) List() []*models.Connection {
@@ -177,7 +182,7 @@ func (m *ConnectionManager) Update(id string, req *models.ConnectionRequest) (*m
 	conn.SSLMode = req.SSLMode
 	conn.UpdatedAt = time.Now()
 
-	if err := m.saveConnections(); err != nil {
+	if err := m.saveConnectionsLocked(); err != nil {
 		return nil, err
 	}
 
@@ -201,7 +206,7 @@ func (m *ConnectionManager) Delete(id string) error {
 	}
 
 	delete(m.connections, id)
-	return m.saveConnections()
+	return m.saveConnectionsLocked()
 }
 
 func (m *ConnectionManager) buildConnString(conn *models.Connection) string {

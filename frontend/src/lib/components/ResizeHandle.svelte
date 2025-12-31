@@ -55,6 +55,7 @@
 		position: relative;
 		flex-shrink: 0;
 		z-index: 10;
+		background: transparent;
 	}
 
 	.resize-handle.horizontal {
@@ -69,14 +70,14 @@
 
 	.resize-line {
 		position: absolute;
-		background: transparent;
+		background: var(--color-border);
 		transition: background var(--transition-fast);
 	}
 
 	.resize-handle.horizontal .resize-line {
 		top: 0;
 		bottom: 0;
-		left: 2px;
+		left: 0;
 		width: 1px;
 	}
 

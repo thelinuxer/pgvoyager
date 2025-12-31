@@ -31,7 +31,7 @@
 			borderLeftColor: 'var(--color-primary)'
 		},
 		'&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-			backgroundColor: 'var(--color-surface-hover)'
+			backgroundColor: 'rgba(137, 180, 250, 0.3)'
 		},
 		'.cm-activeLine': {
 			backgroundColor: 'var(--color-surface)'
@@ -48,6 +48,9 @@
 		'.cm-lineNumbers .cm-gutterElement': {
 			padding: '0 8px'
 		},
+		'.cm-scroller': {
+			overflow: 'auto'
+		},
 		'.cm-tooltip': {
 			backgroundColor: 'var(--color-surface)',
 			border: '1px solid var(--color-border)',
@@ -62,7 +65,7 @@
 				color: 'var(--color-bg)'
 			}
 		}
-	}, { dark: true });
+	});
 
 	// Syntax highlighting that matches app theme
 	const appHighlightStyle = HighlightStyle.define([
@@ -368,7 +371,7 @@
 </script>
 
 <div class="query-editor" onkeydown={handleKeydown} bind:this={containerEl}>
-	<div class="editor-section" style="height: {$layout.queryEditorHeight}%">
+	<div class="editor-section" style="flex: 0 0 {$layout.queryEditorHeight}%">
 		<div class="editor-toolbar">
 			<button
 				class="btn btn-primary btn-sm"
@@ -403,12 +406,6 @@
 				bind:value={query}
 				{extensions}
 				onready={handleEditorReady}
-				styles={{
-					'&': {
-						height: '100%',
-						fontSize: '14px'
-					}
-				}}
 			/>
 		</div>
 	</div>
@@ -488,6 +485,7 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 150px;
+		overflow: hidden;
 	}
 
 	.editor-toolbar {
@@ -507,18 +505,53 @@
 
 	.editor-container {
 		flex: 1;
+		position: relative;
+		min-height: 0;
 		overflow: hidden;
-		display: flex;
-		flex-direction: column;
+	}
+
+	.editor-container :global(.codemirror-wrapper) {
+		position: absolute !important;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
 	}
 
 	.editor-container :global(.cm-editor) {
-		height: 100%;
-		flex: 1;
+		position: absolute !important;
+		top: 0 !important;
+		left: 0 !important;
+		right: 0 !important;
+		bottom: 0 !important;
+		height: auto !important;
+		font-size: 14px;
 	}
 
 	.editor-container :global(.cm-scroller) {
-		overflow: auto;
+		overflow: auto !important;
+		scrollbar-width: auto !important;
+		scrollbar-color: var(--color-text-dim) var(--color-bg-secondary) !important;
+	}
+
+	.editor-container :global(.cm-scroller)::-webkit-scrollbar {
+		width: 12px !important;
+		height: 12px !important;
+		display: block !important;
+	}
+
+	.editor-container :global(.cm-scroller)::-webkit-scrollbar-track {
+		background: var(--color-bg-secondary) !important;
+	}
+
+	.editor-container :global(.cm-scroller)::-webkit-scrollbar-thumb {
+		background: var(--color-text-dim) !important;
+		border-radius: 6px !important;
+		border: 2px solid var(--color-bg-secondary) !important;
+	}
+
+	.editor-container :global(.cm-scroller)::-webkit-scrollbar-thumb:hover {
+		background: var(--color-text-muted) !important;
 	}
 
 	.results-section {

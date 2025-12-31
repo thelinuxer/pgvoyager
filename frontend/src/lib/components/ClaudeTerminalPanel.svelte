@@ -4,7 +4,6 @@
 	import { activeConnectionId } from '$lib/stores/connections';
 	import { layout } from '$lib/stores/layout';
 	import { editorStore } from '$lib/stores/editor';
-	import ResizeHandle from './ResizeHandle.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	// Dynamic import for xterm to handle CommonJS module
@@ -116,19 +115,16 @@
 		}
 	}
 
-	// Handle resize from drag (horizontal - width)
-	function handleResize(delta: number) {
-		const newWidth = $layout.claudeTerminalWidth - delta;
-		layout.setClaudeTerminalWidth(newWidth);
-
-		// Refit terminal after resize
-		setTimeout(() => {
-			if (fitAddon && terminal) {
+	// Refit terminal when width changes
+	$effect(() => {
+		const width = $layout.claudeTerminalWidth;
+		if (width && fitAddon && terminal) {
+			setTimeout(() => {
 				fitAddon.fit();
 				claudeTerminal.resize(terminal.cols, terminal.rows);
-			}
-		}, 50);
-	}
+			}, 50);
+		}
+	});
 
 	// Sync editor content to Claude session
 	$effect(() => {
@@ -189,8 +185,6 @@
 </script>
 
 <div class="claude-terminal-panel" style="width: {$layout.claudeTerminalWidth}px">
-	<ResizeHandle direction="horizontal" onResize={handleResize} />
-
 	<div class="panel-content">
 		<div class="panel-header">
 			<div class="panel-title">
@@ -236,10 +230,9 @@
 <style>
 	.claude-terminal-panel {
 		display: flex;
-		flex-direction: row;
-		background: #1e1e2e;
+		flex-direction: column;
+		background: var(--color-bg);
 		border-left: 1px solid var(--color-border);
-		position: relative;
 		height: 100%;
 	}
 
@@ -255,7 +248,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 8px 12px;
-		background: var(--color-bg-secondary);
+		background: var(--color-bg-secondary, #181825);
 		border-bottom: 1px solid var(--color-border);
 		flex-shrink: 0;
 	}
@@ -300,7 +293,6 @@
 	.terminal-container {
 		flex: 1;
 		overflow: hidden;
-		padding: 8px;
 	}
 
 	.terminal-container :global(.xterm) {

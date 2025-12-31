@@ -87,6 +87,10 @@
 		layout.setSidebarWidth($layout.sidebarWidth + delta);
 	}
 
+	function handleClaudeResize(delta: number) {
+		layout.setClaudeTerminalWidth($layout.claudeTerminalWidth - delta);
+	}
+
 	function handleToggleClaude() {
 		layout.toggleClaudeTerminal();
 	}
@@ -141,6 +145,7 @@
 		</div>
 
 		{#if $layout.claudeTerminalVisible && $activeConnection}
+			<ResizeHandle direction="horizontal" onResize={handleClaudeResize} />
 			<ClaudeTerminalPanel />
 		{/if}
 	</div>

@@ -37,6 +37,15 @@ func GetManager() *Manager {
 	return manager
 }
 
+// getBackendURL returns the backend URL based on environment variables
+func getBackendURL() string {
+	port := os.Getenv("PGVOYAGER_PORT")
+	if port == "" {
+		port = "5137"
+	}
+	return fmt.Sprintf("http://localhost:%s", port)
+}
+
 // findMCPServer looks for the pgvoyager-mcp binary in multiple locations
 func findMCPServer() string {
 	// Check environment variable first
@@ -275,7 +284,7 @@ func (m *Manager) CreateSession(connectionID string) (*Session, error) {
 				Command: mcpServerPath,
 				Env: map[string]string{
 					"PGVOYAGER_SESSION_ID":   sessionID,
-					"PGVOYAGER_BACKEND_URL":  "http://localhost:8081",
+					"PGVOYAGER_BACKEND_URL":  getBackendURL(),
 				},
 			},
 		},

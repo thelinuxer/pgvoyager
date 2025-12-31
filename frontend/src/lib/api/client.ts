@@ -23,7 +23,21 @@ import type {
 	CrudResponse
 } from '$lib/types';
 
-const API_BASE = 'http://localhost:8081/api';
+// In production, the frontend is served from the same origin as the API
+// In development, we need to specify the backend URL
+function getApiBase(): string {
+	if (typeof window === 'undefined') return '/api';
+
+	// Development mode (Vite dev server on port 5173)
+	if (window.location.port === '5173') {
+		return 'http://localhost:5137/api';
+	}
+
+	// Production mode - use same origin (relative URL)
+	return '/api';
+}
+
+const API_BASE = getApiBase();
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 	let response: Response;

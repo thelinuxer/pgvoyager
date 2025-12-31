@@ -111,11 +111,11 @@ chmod +x pgvoyager
 PGVOYAGER_MODE=production ./pgvoyager
 ```
 
-Then open `http://localhost:8081` in your browser.
+Then open `http://localhost:5137` in your browser.
 
 ## Getting Started
 
-1. Launch PgVoyager and open `http://localhost:8081`
+1. Launch PgVoyager and open `http://localhost:5137`
 2. Click "New Connection" and enter your PostgreSQL credentials
 3. Browse your schemas in the left sidebar
 4. Open a query tab and write some SQL
@@ -141,7 +141,7 @@ PGVOYAGER_MODE=production ./bin/pgvoyager
 make dev
 ```
 
-Starts backend on `http://localhost:8081` and frontend on `http://localhost:5173`.
+Starts backend on `http://localhost:5137` and frontend on `http://localhost:5173`.
 
 ## Architecture
 

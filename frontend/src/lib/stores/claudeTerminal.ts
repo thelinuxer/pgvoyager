@@ -1,6 +1,33 @@
 import { writable, get } from 'svelte/store';
 import { editorStore, type EditorAction } from './editor';
 
+// Get API base URL dynamically based on environment
+function getApiBase(): string {
+	if (typeof window === 'undefined') return '';
+
+	// Development mode (Vite dev server on port 5173)
+	if (window.location.port === '5173') {
+		return 'http://localhost:5137';
+	}
+
+	// Production mode - use same origin
+	return '';
+}
+
+// Get WebSocket base URL dynamically
+function getWsBase(): string {
+	if (typeof window === 'undefined') return '';
+
+	// Development mode (Vite dev server on port 5173)
+	if (window.location.port === '5173') {
+		return 'ws://localhost:5137';
+	}
+
+	// Production mode - derive from current location
+	const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+	return `${protocol}//${window.location.host}`;
+}
+
 // Terminal type - using interface to avoid importing CommonJS module
 interface ITerminal {
 	write(data: string): void;
@@ -63,7 +90,7 @@ function createClaudeTerminalStore() {
 		update((state) => ({ ...state, isConnecting: true, error: null }));
 
 		try {
-			const response = await fetch('http://localhost:8081/api/claude/sessions', {
+			const response = await fetch(`${getApiBase()}/api/claude/sessions`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ connectionId })
@@ -97,7 +124,7 @@ function createClaudeTerminalStore() {
 			disconnect();
 
 			try {
-				await fetch(`http://localhost:8081/api/claude/sessions/${state.sessionId}`, {
+				await fetch(`${getApiBase()}/api/claude/sessions/${state.sessionId}`, {
 					method: 'DELETE'
 				});
 			} catch (e) {
@@ -121,7 +148,7 @@ function createClaudeTerminalStore() {
 	// Update the session's database connection without restarting Claude
 	async function updateSessionConnection(sessionId: string, connectionId: string): Promise<boolean> {
 		try {
-			const response = await fetch(`http://localhost:8081/api/claude/sessions/${sessionId}/connection`, {
+			const response = await fetch(`${getApiBase()}/api/claude/sessions/${sessionId}/connection`, {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ connectionId })
@@ -177,7 +204,7 @@ function createClaudeTerminalStore() {
 		terminal = term;
 
 		// Create WebSocket connection
-		const wsUrl = `ws://localhost:8081/api/claude/terminal/${state.sessionId}`;
+		const wsUrl = `${getWsBase()}/api/claude/terminal/${state.sessionId}`;
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {

@@ -15,7 +15,7 @@ import (
 func main() {
 	port := os.Getenv("PGVOYAGER_PORT")
 	if port == "" {
-		port = "8081"
+		port = "5137"
 	}
 
 	// Check if we're in production mode (serving embedded frontend)

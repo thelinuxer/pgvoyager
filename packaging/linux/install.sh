@@ -3,15 +3,20 @@
 
 set -e
 
+# Parse command line arguments
+PGVOYAGER_PORT="${1:-5137}"
+
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 ICON_DIR="${HOME}/.local/share/icons/hicolor"
 DESKTOP_DIR="${HOME}/.local/share/applications"
+CONFIG_DIR="${HOME}/.config/pgvoyager"
 
 # Get the directory where the script is located (resolve before sudo changes things)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "Installing PgVoyager..."
 echo "Script directory: ${SCRIPT_DIR}"
+echo "Port: ${PGVOYAGER_PORT}"
 
 # Stop any running pgvoyager instance
 if pgrep -f "/usr/local/bin/pgvoyager" > /dev/null 2>&1; then
@@ -92,6 +97,14 @@ fi
 gtk-update-icon-cache "${ICON_DIR}" 2>/dev/null || true
 update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
 
+# Save port configuration
+mkdir -p "${CONFIG_DIR}"
+echo "PGVOYAGER_PORT=${PGVOYAGER_PORT}" > "${CONFIG_DIR}/config"
+echo "  Saved port configuration to ${CONFIG_DIR}/config"
+
 echo ""
 echo "PgVoyager installed successfully!"
+echo "Server will run on port: ${PGVOYAGER_PORT}"
 echo "You can now launch it from your application menu or run: pgvoyager-launcher"
+echo ""
+echo "To use a different port, reinstall with: ./install.sh <port>"

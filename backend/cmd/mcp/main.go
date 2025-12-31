@@ -23,7 +23,7 @@ func main() {
 	// Get backend URL and session ID from environment
 	backendURL = os.Getenv("PGVOYAGER_BACKEND_URL")
 	if backendURL == "" {
-		backendURL = "http://localhost:8081"
+		backendURL = "http://localhost:5137"
 	}
 
 	sessionID = os.Getenv("PGVOYAGER_SESSION_ID")

@@ -20,7 +20,15 @@ for npm_path in "$HOME/.npm-global/bin" "$HOME/.local/bin" "$HOME/node_modules/.
 done
 
 PGVOYAGER_BIN="${PGVOYAGER_BIN:-/usr/local/bin/pgvoyager}"
-PGVOYAGER_PORT="${PGVOYAGER_PORT:-8081}"
+
+# Load port from config file if it exists
+CONFIG_FILE="${HOME}/.config/pgvoyager/config"
+if [ -f "${CONFIG_FILE}" ]; then
+    source "${CONFIG_FILE}"
+fi
+
+# Environment variable overrides config file, default is 5137
+PGVOYAGER_PORT="${PGVOYAGER_PORT:-5137}"
 PGVOYAGER_URL="http://localhost:${PGVOYAGER_PORT}"
 
 # Check if server is already responding on the port

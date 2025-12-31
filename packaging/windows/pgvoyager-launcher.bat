@@ -1,11 +1,19 @@
 @echo off
 REM PgVoyager Windows Launcher - starts server and opens browser
 
-setlocal
+setlocal enabledelayedexpansion
 
 set "SCRIPT_DIR=%~dp0"
 set "PGVOYAGER_BIN=%SCRIPT_DIR%pgvoyager.exe"
-set "PGVOYAGER_PORT=8081"
+set "CONFIG_FILE=%LOCALAPPDATA%\PgVoyager\config.txt"
+
+REM Load port from config file if it exists
+set "PGVOYAGER_PORT=5137"
+if exist "%CONFIG_FILE%" (
+    for /f "tokens=2 delims==" %%a in ('findstr /i "PGVOYAGER_PORT" "%CONFIG_FILE%"') do set "PGVOYAGER_PORT=%%a"
+)
+
+REM Environment variable overrides config file
 if defined PGVOYAGER_PORT_ENV set "PGVOYAGER_PORT=%PGVOYAGER_PORT_ENV%"
 set "PGVOYAGER_URL=http://localhost:%PGVOYAGER_PORT%"
 

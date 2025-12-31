@@ -7,7 +7,7 @@ LDFLAGS := -s -w -X github.com/thelinuxer/pgvoyager/internal/version.Version=$(V
 # Default target: run both backend and frontend
 dev:
 	@echo "Starting PgVoyager..."
-	@echo "Backend will run on http://localhost:8081"
+	@echo "Backend will run on http://localhost:5137"
 	@echo "Frontend will run on http://localhost:5173"
 	@make -j2 backend frontend
 

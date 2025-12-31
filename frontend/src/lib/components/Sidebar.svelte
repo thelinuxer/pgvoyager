@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { activeConnection } from '$lib/stores/connections';
-	import { schemaTree, expandedNodes, toggleNode, isLoading, error } from '$lib/stores/schema';
+	import { activeConnection, activeConnectionId } from '$lib/stores/connections';
+	import { schemaTree, expandedNodes, toggleNode, isLoading, error, refreshSchema } from '$lib/stores/schema';
 	import { tabs } from '$lib/stores/tabs';
+	import { dataApi } from '$lib/api/client';
 	import type { SchemaTreeNode, Table } from '$lib/types';
 	import Icon from '$lib/icons/Icon.svelte';
 
@@ -18,6 +19,11 @@
 
 	// Context menu state
 	let contextMenu = $state<{ node: SchemaTreeNode; x: number; y: number } | null>(null);
+
+	// Drop table confirmation modal state
+	let dropTableModal = $state<{ schema: string; table: string; cascade: boolean } | null>(null);
+	let isDropping = $state(false);
+	let dropError = $state<string | null>(null);
 
 	// Filter the tree based on search query
 	function filterTree(nodes: SchemaTreeNode[], query: string): SchemaTreeNode[] {
@@ -158,6 +164,50 @@
 		closeContextMenu();
 	}
 
+	function handleFilterTable(node: SchemaTreeNode) {
+		if (!node.schema) return;
+		const sql = `SELECT *
+FROM "${node.schema}"."${node.name}"
+WHERE column_name = 'value'
+LIMIT 100;`;
+		tabs.openQuery({ title: `Filter ${node.name}`, initialSql: sql });
+		closeContextMenu();
+	}
+
+	function handleDropTableClick(node: SchemaTreeNode) {
+		if (!node.schema) return;
+		dropTableModal = { schema: node.schema, table: node.name, cascade: false };
+		closeContextMenu();
+	}
+
+	function closeDropTableModal() {
+		dropTableModal = null;
+		dropError = null;
+	}
+
+	async function confirmDropTable() {
+		if (!dropTableModal || !$activeConnectionId) return;
+
+		isDropping = true;
+		dropError = null;
+
+		try {
+			await dataApi.dropTable(
+				$activeConnectionId,
+				dropTableModal.schema,
+				dropTableModal.table,
+				dropTableModal.cascade
+			);
+			closeDropTableModal();
+			// Refresh the schema tree
+			refreshSchema();
+		} catch (e) {
+			dropError = e instanceof Error ? e.message : 'Failed to drop table';
+		} finally {
+			isDropping = false;
+		}
+	}
+
 	function clearSearch() {
 		searchQuery = '';
 	}
@@ -278,6 +328,10 @@
 			<Icon name="arrow-down" size={14} />
 			Show last 100 rows
 		</button>
+		<button class="context-menu-item" onclick={() => handleFilterTable(menuNode)}>
+			<Icon name="filter" size={14} />
+			Filter table...
+		</button>
 		<div class="context-menu-separator"></div>
 		<button class="context-menu-item" onclick={() => handleOpenInQuery(menuNode)}>
 			<Icon name="file" size={14} />
@@ -287,6 +341,53 @@
 			<Icon name="copy" size={14} />
 			Copy table name
 		</button>
+		<div class="context-menu-separator"></div>
+		<button class="context-menu-item context-menu-item-danger" onclick={() => handleDropTableClick(menuNode)}>
+			<Icon name="trash" size={14} />
+			Drop table...
+		</button>
+	</div>
+{/if}
+
+<!-- Drop Table Confirmation Modal -->
+{#if dropTableModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="modal-backdrop" onclick={closeDropTableModal}></div>
+	<div class="modal">
+		<div class="modal-header">
+			<Icon name="alert-circle" size={20} />
+			<h3>Drop Table</h3>
+		</div>
+		<div class="modal-body">
+			<p>Are you sure you want to drop the table <strong>"{dropTableModal.schema}"."{dropTableModal.table}"</strong>?</p>
+			<p class="warning-text">This action cannot be undone!</p>
+
+			{#if dropError}
+				<div class="modal-error">
+					<Icon name="alert-circle" size={14} />
+					{dropError}
+				</div>
+			{/if}
+
+			<label class="cascade-option">
+				<input type="checkbox" bind:checked={dropTableModal.cascade} />
+				<span>CASCADE (also drop dependent objects)</span>
+			</label>
+		</div>
+		<div class="modal-footer">
+			<button class="btn btn-secondary btn-sm" onclick={closeDropTableModal} disabled={isDropping}>
+				Cancel
+			</button>
+			<button class="btn btn-danger btn-sm" onclick={confirmDropTable} disabled={isDropping}>
+				{#if isDropping}
+					<Icon name="refresh" size={14} class="spinning" />
+					Dropping...
+				{:else}
+					Drop Table
+				{/if}
+			</button>
+		</div>
 	</div>
 {/if}
 
@@ -587,5 +688,111 @@
 		height: 1px;
 		background: var(--color-border);
 		margin: 4px 0;
+	}
+
+	.context-menu-item-danger {
+		color: var(--color-error);
+	}
+
+	.context-menu-item-danger:hover {
+		background: rgba(243, 139, 168, 0.15);
+	}
+
+	.context-menu-item-danger svg {
+		color: var(--color-error);
+	}
+
+	/* Modal styles */
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		z-index: 1000;
+	}
+
+	.modal {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 1001;
+		min-width: 400px;
+		max-width: 500px;
+		background: var(--color-bg-secondary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	}
+
+	.modal-header {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 16px 20px;
+		border-bottom: 1px solid var(--color-border);
+		color: var(--color-error);
+	}
+
+	.modal-header h3 {
+		margin: 0;
+		font-size: 16px;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.modal-body {
+		padding: 20px;
+	}
+
+	.modal-body p {
+		margin: 0 0 12px;
+	}
+
+	.warning-text {
+		color: var(--color-error);
+		font-weight: 500;
+	}
+
+	.modal-error {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 12px;
+		margin: 12px 0;
+		background: rgba(243, 139, 168, 0.15);
+		border: 1px solid var(--color-error);
+		border-radius: var(--radius-sm);
+		color: var(--color-error);
+		font-size: 13px;
+	}
+
+	.cascade-option {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 16px;
+		padding: 10px 12px;
+		background: var(--color-surface);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+	}
+
+	.cascade-option input {
+		width: 16px;
+		height: 16px;
+		accent-color: var(--color-primary);
+	}
+
+	.cascade-option span {
+		font-size: 13px;
+		color: var(--color-text-muted);
+	}
+
+	.modal-footer {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+		padding: 16px 20px;
+		border-top: 1px solid var(--color-border);
 	}
 </style>

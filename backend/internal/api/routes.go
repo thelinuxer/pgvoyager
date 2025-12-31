@@ -48,6 +48,8 @@ func RegisterRoutes(r *gin.Engine) {
 			data.POST("/tables/:schema/:table/rows", handlers.InsertRow)
 			data.PUT("/tables/:schema/:table/rows", handlers.UpdateRow)
 			data.DELETE("/tables/:schema/:table/rows", handlers.DeleteRow)
+			// Table operations
+			data.DELETE("/tables/:schema/:table", handlers.DropTable)
 		}
 
 		// Query execution

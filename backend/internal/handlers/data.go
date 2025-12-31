@@ -806,3 +806,44 @@ func DeleteRow(c *gin.Context) {
 		Message:      "Row deleted successfully",
 	})
 }
+
+func DropTable(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	schema := c.Param("schema")
+	table := c.Param("table")
+
+	if !isValidIdentifier(schema) || !isValidIdentifier(table) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid schema or table name"})
+		return
+	}
+
+	// Optional: check for CASCADE option
+	var req struct {
+		Cascade bool `json:"cascade"`
+	}
+	c.ShouldBindJSON(&req)
+
+	query := fmt.Sprintf("DROP TABLE %s.%s", quoteIdentifier(schema), quoteIdentifier(table))
+	if req.Cascade {
+		query += " CASCADE"
+	}
+
+	_, err := pool.Exec(ctx, query)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Table %s.%s dropped successfully", schema, table),
+	})
+}

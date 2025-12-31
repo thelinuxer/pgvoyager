@@ -190,6 +190,12 @@ export const dataApi = {
 		fetchAPI<CrudResponse>(`/data/${connId}/tables/${schema}/${table}/rows`, {
 			method: 'DELETE',
 			body: JSON.stringify(data)
+		}),
+
+	dropTable: (connId: string, schema: string, table: string, cascade?: boolean) =>
+		fetchAPI<{ success: boolean; message: string }>(`/data/${connId}/tables/${schema}/${table}`, {
+			method: 'DELETE',
+			body: JSON.stringify({ cascade: cascade ?? false })
 		})
 };
 

@@ -220,6 +220,16 @@ export function toggleNode(nodeKey: string) {
 	});
 }
 
+// Refresh schema (reload from server)
+export function refreshSchema() {
+	const connId = get(activeConnectionId);
+	if (connId) {
+		// Clear column cache so it gets reloaded
+		tableColumns.set(new Map());
+		loadSchema(connId);
+	}
+}
+
 // Auto-load schema when connection changes
 let currentConnId: string | null = null;
 activeConnectionId.subscribe((connId) => {

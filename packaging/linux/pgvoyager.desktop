@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=PgVoyager
+Comment=PostgreSQL database explorer with AI assistant
+Exec=pgvoyager-launcher
+Icon=pgvoyager
+Terminal=false
+Type=Application
+Categories=Development;Database;
+Keywords=postgresql;database;sql;explorer;
+StartupWMClass=PgVoyager

@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -64,10 +64,159 @@ jobs:
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-windows-amd64.exe ./cmd/server
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-mcp-windows-amd64.exe ./cmd/mcp
 
+      - name: Generate icons
+        run: |
+          sudo apt-get update && sudo apt-get install -y imagemagick inkscape
+          chmod +x packaging/generate-icons.sh
+          ./packaging/generate-icons.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            releases/
+            packaging/
+
+  package-macos:
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Generate macOS icns
+        run: |
+          # Convert iconset to icns using iconutil (macOS only)
+          if [ -d "packaging/macos/pgvoyager.iconset" ]; then
+            iconutil -c icns -o packaging/macos/PgVoyager.app/Contents/Resources/pgvoyager.icns packaging/macos/pgvoyager.iconset
+          fi
+
+      - name: Create macOS packages
+        run: |
+          mkdir -p dist
+
+          # macOS AMD64 app bundle
+          cp -r packaging/macos/PgVoyager.app dist/PgVoyager-amd64.app
+          cp releases/pgvoyager-darwin-amd64 dist/PgVoyager-amd64.app/Contents/Resources/pgvoyager
+          cp releases/pgvoyager-mcp-darwin-amd64 dist/PgVoyager-amd64.app/Contents/Resources/pgvoyager-mcp
+          chmod +x dist/PgVoyager-amd64.app/Contents/MacOS/pgvoyager-launcher
+          chmod +x dist/PgVoyager-amd64.app/Contents/Resources/pgvoyager
+          chmod +x dist/PgVoyager-amd64.app/Contents/Resources/pgvoyager-mcp
+          cd dist && zip -r PgVoyager-macos-amd64.zip PgVoyager-amd64.app && cd ..
+
+          # macOS ARM64 app bundle
+          cp -r packaging/macos/PgVoyager.app dist/PgVoyager-arm64.app
+          cp releases/pgvoyager-darwin-arm64 dist/PgVoyager-arm64.app/Contents/Resources/pgvoyager
+          cp releases/pgvoyager-mcp-darwin-arm64 dist/PgVoyager-arm64.app/Contents/Resources/pgvoyager-mcp
+          chmod +x dist/PgVoyager-arm64.app/Contents/MacOS/pgvoyager-launcher
+          chmod +x dist/PgVoyager-arm64.app/Contents/Resources/pgvoyager
+          chmod +x dist/PgVoyager-arm64.app/Contents/Resources/pgvoyager-mcp
+          cd dist && zip -r PgVoyager-macos-arm64.zip PgVoyager-arm64.app && cd ..
+
+      - name: Upload macOS packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-packages
+          path: dist/*.zip
+
+  package-linux-windows:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Create Linux packages
+        run: |
+          mkdir -p dist
+
+          # Linux AMD64
+          mkdir -p dist/pgvoyager-linux-amd64
+          cp releases/pgvoyager-linux-amd64 dist/pgvoyager-linux-amd64/pgvoyager
+          cp releases/pgvoyager-mcp-linux-amd64 dist/pgvoyager-linux-amd64/pgvoyager-mcp
+          cp packaging/linux/install.sh dist/pgvoyager-linux-amd64/
+          cp packaging/linux/pgvoyager-launcher dist/pgvoyager-linux-amd64/
+          cp packaging/linux/pgvoyager.desktop dist/pgvoyager-linux-amd64/
+          cp packaging/linux/pgvoyager-*.png dist/pgvoyager-linux-amd64/
+          chmod +x dist/pgvoyager-linux-amd64/pgvoyager
+          chmod +x dist/pgvoyager-linux-amd64/pgvoyager-mcp
+          chmod +x dist/pgvoyager-linux-amd64/install.sh
+          chmod +x dist/pgvoyager-linux-amd64/pgvoyager-launcher
+          cd dist && tar -czvf pgvoyager-linux-amd64.tar.gz pgvoyager-linux-amd64 && cd ..
+
+          # Linux ARM64
+          mkdir -p dist/pgvoyager-linux-arm64
+          cp releases/pgvoyager-linux-arm64 dist/pgvoyager-linux-arm64/pgvoyager
+          cp releases/pgvoyager-mcp-linux-arm64 dist/pgvoyager-linux-arm64/pgvoyager-mcp
+          cp packaging/linux/install.sh dist/pgvoyager-linux-arm64/
+          cp packaging/linux/pgvoyager-launcher dist/pgvoyager-linux-arm64/
+          cp packaging/linux/pgvoyager.desktop dist/pgvoyager-linux-arm64/
+          cp packaging/linux/pgvoyager-*.png dist/pgvoyager-linux-arm64/
+          chmod +x dist/pgvoyager-linux-arm64/pgvoyager
+          chmod +x dist/pgvoyager-linux-arm64/pgvoyager-mcp
+          chmod +x dist/pgvoyager-linux-arm64/install.sh
+          chmod +x dist/pgvoyager-linux-arm64/pgvoyager-launcher
+          cd dist && tar -czvf pgvoyager-linux-arm64.tar.gz pgvoyager-linux-arm64 && cd ..
+
+      - name: Create Windows package
+        run: |
+          mkdir -p dist/pgvoyager-windows-amd64
+          cp releases/pgvoyager-windows-amd64.exe dist/pgvoyager-windows-amd64/pgvoyager.exe
+          cp releases/pgvoyager-mcp-windows-amd64.exe dist/pgvoyager-windows-amd64/pgvoyager-mcp.exe
+          cp packaging/windows/install.ps1 dist/pgvoyager-windows-amd64/
+          cp packaging/windows/pgvoyager-launcher.bat dist/pgvoyager-windows-amd64/
+          cp packaging/windows/pgvoyager.ico dist/pgvoyager-windows-amd64/
+          cd dist && zip -r pgvoyager-windows-amd64.zip pgvoyager-windows-amd64 && cd ..
+
+      - name: Upload Linux/Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-windows-packages
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  release:
+    needs: [package-macos, package-linux-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS packages
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-packages
+          path: dist/
+
+      - name: Download Linux/Windows packages
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-windows-packages
+          path: dist/
+
+      - name: Download build artifacts (raw binaries)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/pgvoyager-linux-amd64.tar.gz
+            dist/pgvoyager-linux-arm64.tar.gz
+            dist/PgVoyager-macos-amd64.zip
+            dist/PgVoyager-macos-arm64.zip
+            dist/pgvoyager-windows-amd64.zip
             releases/pgvoyager-linux-amd64
             releases/pgvoyager-linux-arm64
             releases/pgvoyager-darwin-amd64

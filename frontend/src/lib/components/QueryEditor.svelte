@@ -9,12 +9,77 @@
 	import type { Tab, QueryResult } from '$lib/types';
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { sql, PostgreSQL } from '@codemirror/lang-sql';
-	import { oneDark } from '@codemirror/theme-one-dark';
 	import { autocompletion } from '@codemirror/autocomplete';
 	import { createSchemaCompletionSource } from '$lib/utils/sqlAutocomplete';
 	import { EditorView } from '@codemirror/view';
 	import { StateEffect, StateField, RangeSetBuilder } from '@codemirror/state';
 	import { Decoration, type DecorationSet } from '@codemirror/view';
+	import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+	import { tags } from '@lezer/highlight';
+
+	// Custom theme that follows app CSS variables
+	const appTheme = EditorView.theme({
+		'&': {
+			backgroundColor: 'var(--color-bg)',
+			color: 'var(--color-text)'
+		},
+		'.cm-content': {
+			caretColor: 'var(--color-primary)',
+			fontFamily: 'var(--font-mono)'
+		},
+		'.cm-cursor, .cm-dropCursor': {
+			borderLeftColor: 'var(--color-primary)'
+		},
+		'&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+			backgroundColor: 'var(--color-surface-hover)'
+		},
+		'.cm-activeLine': {
+			backgroundColor: 'var(--color-surface)'
+		},
+		'.cm-gutters': {
+			backgroundColor: 'var(--color-bg-secondary)',
+			color: 'var(--color-text-dim)',
+			border: 'none',
+			borderRight: '1px solid var(--color-border)'
+		},
+		'.cm-activeLineGutter': {
+			backgroundColor: 'var(--color-surface)'
+		},
+		'.cm-lineNumbers .cm-gutterElement': {
+			padding: '0 8px'
+		},
+		'.cm-tooltip': {
+			backgroundColor: 'var(--color-surface)',
+			border: '1px solid var(--color-border)',
+			color: 'var(--color-text)'
+		},
+		'.cm-tooltip-autocomplete': {
+			'& > ul > li': {
+				padding: '4px 8px'
+			},
+			'& > ul > li[aria-selected]': {
+				backgroundColor: 'var(--color-primary)',
+				color: 'var(--color-bg)'
+			}
+		}
+	}, { dark: true });
+
+	// Syntax highlighting that matches app theme
+	const appHighlightStyle = HighlightStyle.define([
+		{ tag: tags.keyword, color: 'var(--color-primary)' },
+		{ tag: tags.operator, color: 'var(--color-text)' },
+		{ tag: tags.special(tags.variableName), color: 'var(--color-info)' },
+		{ tag: tags.typeName, color: 'var(--color-warning)' },
+		{ tag: tags.atom, color: 'var(--color-success)' },
+		{ tag: tags.number, color: 'var(--color-success)' },
+		{ tag: tags.string, color: 'var(--color-success)' },
+		{ tag: tags.comment, color: 'var(--color-text-dim)', fontStyle: 'italic' },
+		{ tag: tags.punctuation, color: 'var(--color-text-muted)' },
+		{ tag: tags.labelName, color: 'var(--color-info)' },
+		{ tag: tags.function(tags.variableName), color: 'var(--color-info)' },
+		{ tag: tags.definition(tags.variableName), color: 'var(--color-text)' },
+		{ tag: tags.propertyName, color: 'var(--color-info)' }
+	]);
 	import ResizeHandle from './ResizeHandle.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
 
@@ -120,7 +185,8 @@
 
 		return [
 			sql({ dialect: PostgreSQL }),
-			oneDark,
+			appTheme,
+			syntaxHighlighting(appHighlightStyle),
 			autocompletion({
 				override: [completionSource],
 				activateOnTyping: true,
@@ -442,10 +508,17 @@
 	.editor-container {
 		flex: 1;
 		overflow: hidden;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.editor-container :global(.cm-editor) {
 		height: 100%;
+		flex: 1;
+	}
+
+	.editor-container :global(.cm-scroller) {
+		overflow: auto;
 	}
 
 	.results-section {

@@ -47,12 +47,37 @@ PgVoyager is a modern PostgreSQL client that lets you:
 
 ### Prerequisites
 
-- **Go 1.24+** - Backend runtime
-- **Node.js 20+** - Frontend toolchain
 - **Claude Code CLI** - For the embedded AI assistant (`npm install -g @anthropic-ai/claude-code` or see [Claude Code docs](https://docs.anthropic.com/en/docs/claude-code))
 - **PostgreSQL** - A database to connect to
 
 ### Installation
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/thelinuxer/pgvoyager/releases):
+
+| Platform | Binary |
+|----------|--------|
+| Linux (x64) | `pgvoyager-linux-amd64` |
+| Linux (ARM64) | `pgvoyager-linux-arm64` |
+| macOS (Intel) | `pgvoyager-darwin-amd64` |
+| macOS (Apple Silicon) | `pgvoyager-darwin-arm64` |
+| Windows | `pgvoyager-windows-amd64.exe` |
+
+```bash
+# Linux/macOS example
+curl -L https://github.com/thelinuxer/pgvoyager/releases/latest/download/pgvoyager-linux-amd64 -o pgvoyager
+chmod +x pgvoyager
+
+# Run it
+PGVOYAGER_MODE=production ./pgvoyager
+```
+
+Then open `http://localhost:8081` in your browser.
+
+### Building from Source
+
+**Prerequisites for building:**
+- Go 1.24+
+- Node.js 20+
 
 ```bash
 # Clone the repo
@@ -62,30 +87,30 @@ cd pgvoyager
 # Install dependencies
 make install
 
-# Build everything (backend + MCP server + frontend)
-make build
+# Build production binary with embedded frontend
+make build-prod
+
+# Run it
+PGVOYAGER_MODE=production ./bin/pgvoyager
 ```
 
-### Running
+### Development Mode
 
-**Development mode** (hot reload):
+For development with hot reload:
+
 ```bash
 make dev
 ```
+
 This starts:
 - Backend API on `http://localhost:8081`
 - Frontend on `http://localhost:5173`
 
-**Production build**:
-```bash
-# After running make build
-./bin/pgvoyager  # Start the backend
-cd frontend && npm run preview  # Serve the built frontend
-```
-
 ### First Steps
 
-1. Open `http://localhost:5173` in your browser
+1. Open your browser:
+   - Production: `http://localhost:8081`
+   - Development: `http://localhost:5173`
 2. Click "New Connection" and enter your PostgreSQL credentials
 3. Browse your schemas in the left sidebar
 4. Open a query tab and write some SQL

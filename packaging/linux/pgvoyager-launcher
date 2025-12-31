@@ -23,12 +23,16 @@ PGVOYAGER_BIN="${PGVOYAGER_BIN:-/usr/local/bin/pgvoyager}"
 PGVOYAGER_PORT="${PGVOYAGER_PORT:-8081}"
 PGVOYAGER_URL="http://localhost:${PGVOYAGER_PORT}"
 
-# Check if pgvoyager is already running
-if pgrep -f "pgvoyager.*PGVOYAGER_MODE=production" > /dev/null 2>&1; then
-    # Already running, just open browser
+# Check if server is already responding on the port
+if curl -s "${PGVOYAGER_URL}/api/version" > /dev/null 2>&1; then
+    # Server already running, just open browser
     xdg-open "${PGVOYAGER_URL}" 2>/dev/null || open "${PGVOYAGER_URL}" 2>/dev/null
     exit 0
 fi
+
+# Kill any existing pgvoyager server process (but not this launcher)
+pkill -f "/usr/local/bin/pgvoyager$" 2>/dev/null || true
+sleep 1
 
 # Start pgvoyager in background
 PGVOYAGER_MODE=production PGVOYAGER_PORT="${PGVOYAGER_PORT}" "${PGVOYAGER_BIN}" &

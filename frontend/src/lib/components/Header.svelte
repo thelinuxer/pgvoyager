@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { connections, activeConnectionId, activeConnection } from '$lib/stores/connections';
-	import { connectionApi } from '$lib/api/client';
+	import { connectionApi, updateApi, type UpdateCheckResponse } from '$lib/api/client';
 	import { layout } from '$lib/stores/layout';
 	import Icon from '$lib/icons/Icon.svelte';
+	import { onMount } from 'svelte';
 
 	interface Props {
 		onNewConnection: () => void;
@@ -15,6 +16,15 @@
 
 	let isConnecting = $state(false);
 	let connectionError = $state<string | null>(null);
+	let updateInfo = $state<UpdateCheckResponse | null>(null);
+
+	onMount(async () => {
+		try {
+			updateInfo = await updateApi.checkUpdate();
+		} catch {
+			// Silently ignore update check failures
+		}
+	});
 
 	async function handleConnect(id: string) {
 		if (isConnecting) return;
@@ -62,6 +72,20 @@
 			<img src="/logo.svg" alt="PgVoyager" class="logo-icon" />
 			<span class="logo-text">PgVoyager</span>
 		</div>
+		{#if updateInfo}
+			{#if updateInfo.hasUpdate}
+				<a href={updateInfo.releaseUrl} target="_blank" rel="noopener noreferrer"
+				   class="version-badge update-available"
+				   title="Update available! Click to download v{updateInfo.latestVersion}">
+					<Icon name="download" size={12} />
+					v{updateInfo.currentVersion}
+				</a>
+			{:else}
+				<span class="version-badge" title="PgVoyager v{updateInfo.currentVersion}">
+					v{updateInfo.currentVersion}
+				</span>
+			{/if}
+		{/if}
 	</div>
 
 	<div class="header-center">
@@ -180,6 +204,32 @@
 
 	.logo-text {
 		font-size: 16px;
+	}
+
+	.version-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 8px;
+		font-size: 11px;
+		font-weight: 500;
+		color: var(--color-text-muted);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: 12px;
+	}
+
+	.version-badge.update-available {
+		color: var(--color-primary);
+		border-color: var(--color-primary);
+		background: rgba(137, 180, 250, 0.1);
+		text-decoration: none;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.version-badge.update-available:hover {
+		background: rgba(137, 180, 250, 0.2);
 	}
 
 	.connection-wrapper {

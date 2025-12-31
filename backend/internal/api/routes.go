@@ -78,6 +78,10 @@ func RegisterRoutes(r *gin.Engine) {
 			claude.PUT("/sessions/:id/connection", handlers.UpdateClaudeSessionConnection)
 		}
 
+		// Version and updates
+		api.GET("/version", handlers.GetVersion)
+		api.GET("/update/check", handlers.CheckUpdate)
+
 		// MCP API (called by MCP server, uses X-Claude-Session-ID header)
 		mcp := api.Group("/mcp")
 		{

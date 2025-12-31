@@ -41,28 +41,31 @@ jobs:
 
       - name: Build binaries
         working-directory: backend
+        env:
+          VERSION: ${{ github.ref_name }}
+          LDFLAGS: -s -w -X github.com/thelinuxer/pgvoyager/internal/version.Version=${{ github.ref_name }}
         run: |
           mkdir -p ../releases
 
           # Linux AMD64
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-linux-amd64 ./cmd/server
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-mcp-linux-amd64 ./cmd/mcp
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-linux-amd64 ./cmd/server
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-mcp-linux-amd64 ./cmd/mcp
 
           # Linux ARM64
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-linux-arm64 ./cmd/server
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-mcp-linux-arm64 ./cmd/mcp
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-linux-arm64 ./cmd/server
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-mcp-linux-arm64 ./cmd/mcp
 
           # macOS AMD64
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-darwin-amd64 ./cmd/server
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-mcp-darwin-amd64 ./cmd/mcp
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-darwin-amd64 ./cmd/server
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-mcp-darwin-amd64 ./cmd/mcp
 
           # macOS ARM64 (Apple Silicon)
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-darwin-arm64 ./cmd/server
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-mcp-darwin-arm64 ./cmd/mcp
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-darwin-arm64 ./cmd/server
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-mcp-darwin-arm64 ./cmd/mcp
 
           # Windows AMD64
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-windows-amd64.exe ./cmd/server
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../releases/pgvoyager-mcp-windows-amd64.exe ./cmd/mcp
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-windows-amd64.exe ./cmd/server
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-mcp-windows-amd64.exe ./cmd/mcp
 
       - name: Generate icons
         run: |

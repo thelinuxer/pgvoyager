@@ -237,3 +237,21 @@ export const savedQueryApi = {
 			method: 'DELETE'
 		})
 };
+
+// Update API
+export interface VersionResponse {
+	version: string;
+}
+
+export interface UpdateCheckResponse {
+	currentVersion: string;
+	latestVersion: string;
+	hasUpdate: boolean;
+	releaseUrl: string;
+}
+
+export const updateApi = {
+	getVersion: () => fetchAPI<VersionResponse>('/version'),
+
+	checkUpdate: () => fetchAPI<UpdateCheckResponse>('/update/check')
+};

@@ -188,7 +188,3 @@ claude --version
 ### Connection issues
 
 Check that your PostgreSQL server is running and accessible. SSL is enabled by default; you can disable it in the connection settings.
-
-## License
-
-MIT

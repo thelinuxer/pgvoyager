@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="frontend/static/logo.svg" alt="PgVoyager" width="120">
+</p>
+
 # PgVoyager
 
 A PostgreSQL database explorer with an embedded Claude Code terminal. Built entirely through vibe coding with Claude.

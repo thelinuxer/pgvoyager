@@ -11,6 +11,11 @@ env:
   NODE_VERSION: '20'
   GO_VERSION: '1.21'
 
+# Permissions needed for test-reporter to create check runs
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   e2e-tests:
     name: Run E2E Tests

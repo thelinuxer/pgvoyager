@@ -64,6 +64,11 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Copy frontend to backend
+        run: |
+          rm -rf backend/web/dist/*
+          cp -r frontend/build/* backend/web/dist/
+
       - name: Build backend
         working-directory: backend
         run: go build -o ../pgvoyager ./cmd/server
@@ -231,6 +236,11 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Copy frontend to backend
+        run: |
+          rm -rf backend/web/dist/*
+          cp -r frontend/build/* backend/web/dist/
 
       - name: Build backend
         working-directory: backend

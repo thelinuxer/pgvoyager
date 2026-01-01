@@ -294,6 +294,7 @@ export interface Tab {
 	navigationIndex?: number;
 	// For query tabs
 	initialSql?: string;
+	queryContent?: string; // Current query content (persisted across tab switches)
 	// For ERD tabs
 	erdNavigationStack?: ERDLocation[];
 	erdNavigationIndex?: number;

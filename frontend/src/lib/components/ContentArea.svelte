@@ -21,9 +21,7 @@
 		{#if $activeTab.type === 'table'}
 			<TableViewer tab={$activeTab} />
 		{:else if $activeTab.type === 'query'}
-			{#key $activeTab.id}
-				<QueryEditor tab={$activeTab} {onSaveQuery} />
-			{/key}
+			<QueryEditor tab={$activeTab} {onSaveQuery} />
 		{:else if $activeTab.type === 'view'}
 			<ViewViewer tab={$activeTab} />
 		{:else if $activeTab.type === 'function'}

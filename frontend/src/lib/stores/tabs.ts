@@ -700,6 +700,13 @@ function createTabsStore() {
 			);
 		},
 
+		// Update query content for a query tab (persists across tab switches)
+		updateQueryContent: (id: string, queryContent: string) => {
+			update((tabs) =>
+				tabs.map((t) => (t.id === id ? { ...t, queryContent } : t))
+			);
+		},
+
 		reorder: (fromIndex: number, toIndex: number) => {
 			update((tabs) => {
 				const newTabs = [...tabs];

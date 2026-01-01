@@ -6,6 +6,7 @@
 	import { queryHistory } from '$lib/stores/queryHistory';
 	import { tables, views, functions, allColumns } from '$lib/stores/schema';
 	import { editorStore } from '$lib/stores/editor';
+	import { tabs } from '$lib/stores/tabs';
 	import type { Tab, QueryResult } from '$lib/types';
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { sql, PostgreSQL } from '@codemirror/lang-sql';
@@ -128,11 +129,34 @@
 
 	let { tab, onSaveQuery }: Props = $props();
 
-	let query = $state(tab.initialSql || 'SELECT * FROM ');
+	// Track which tab ID we're currently showing
+	let currentTabId = $state(tab.id);
+
+	// Initialize query: use persisted content if available, otherwise use initialSql
+	let query = $state(tab.queryContent ?? tab.initialSql ?? 'SELECT * FROM ');
 	let result = $state<QueryResult | null>(null);
 	let isExecuting = $state(false);
 	let executionTime = $state<number | null>(null);
 	let containerEl: HTMLDivElement;
+
+	// Detect tab switches and load the appropriate content
+	$effect(() => {
+		if (tab.id !== currentTabId) {
+			// Tab changed - load content for the new tab
+			currentTabId = tab.id;
+			query = tab.queryContent ?? tab.initialSql ?? 'SELECT * FROM ';
+			result = null;
+			executionTime = null;
+		}
+	});
+
+	// Persist query content to tab state when it changes (debounced via effect batching)
+	$effect(() => {
+		// Only save if we have actual content and it's different from what's stored
+		if (query !== undefined) {
+			tabs.updateQueryContent(tab.id, query);
+		}
+	});
 
 	// Sync query changes to the editor store for Claude to access
 	$effect(() => {
@@ -198,13 +222,6 @@
 			errorHighlightField,
 			errorHighlightTheme
 		];
-	});
-
-	// Update query if tab changes with new initialSql
-	$effect(() => {
-		if (tab.initialSql && query === 'SELECT * FROM ') {
-			query = tab.initialSql;
-		}
 	});
 
 	function highlightError(position: number) {

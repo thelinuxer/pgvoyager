@@ -106,33 +106,11 @@ jobs:
             sleep 2
           done
 
-      - name: Run Smoke Tests
+      - name: Run All E2E Tests
         working-directory: e2e
-        run: npm run test:smoke
+        run: npm test
         env:
           CI: true
-
-      - name: Run Tier 1 Tests (Critical)
-        working-directory: e2e
-        run: npm run test:tier1
-        env:
-          CI: true
-        if: success()
-
-      - name: Run Tier 2 Tests (Important)
-        working-directory: e2e
-        run: npm run test:tier2
-        env:
-          CI: true
-        if: success()
-
-      - name: Run Tier 3 Tests (Extended)
-        working-directory: e2e
-        run: npm run test:tier3
-        env:
-          CI: true
-        if: success()
-        continue-on-error: true
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

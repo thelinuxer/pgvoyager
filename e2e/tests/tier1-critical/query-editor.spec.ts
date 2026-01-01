@@ -225,6 +225,32 @@ test.describe('Query Editor', () => {
     });
   });
 
+  test.describe('Query Tab Isolation', () => {
+    test('should open new query tab with correct SQL from context menu', async () => {
+      // First, add some custom text to the current query editor
+      await app.queryEditor.setQuery('-- This is my custom query');
+
+      // Now right-click on a table and open in query
+      await app.sidebar.expandNode('test_schema');
+      await app.sidebar.expandNode('Tables');
+      await app.sidebar.rightClickTable('users');
+
+      // Click "Open in Query" from context menu
+      await app.sidebar.clickContextMenuItem('Open in Query');
+
+      // Wait for the new query tab to be active
+      await app.queryEditor.codeEditor.waitFor({ state: 'visible', timeout: 5000 });
+      await app.page.waitForTimeout(300);
+
+      // The new query should have SELECT statement, NOT the previous custom text
+      const queryText = await app.queryEditor.getQueryText();
+      expect(queryText).toContain('SELECT *');
+      expect(queryText).toContain('test_schema');
+      expect(queryText).toContain('users');
+      expect(queryText).not.toContain('This is my custom query');
+    });
+  });
+
   test.describe('Special Values', () => {
     test('should handle NULL values in results', async () => {
       await app.queryEditor.setQuery('SELECT NULL as null_value');

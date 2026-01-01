@@ -73,9 +73,9 @@ export default defineConfig({
 
   // Run local dev server before starting the tests
   // For local development: start the app manually with `make dev` in a separate terminal
-  // For CI: the production binary is built and run
+  // For CI: the production binary is built and run with embedded frontend
   webServer: isCI ? {
-    command: 'cd .. && ./pgvoyager',
+    command: 'cd .. && PGVOYAGER_MODE=production ./pgvoyager',
     url: baseURL,
     reuseExistingServer: false,
     timeout: 30000,

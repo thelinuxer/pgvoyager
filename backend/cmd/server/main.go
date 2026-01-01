@@ -34,7 +34,7 @@ func main() {
 	} else {
 		// Development: CORS for separate frontend dev server
 		r.Use(cors.New(cors.Config{
-			AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+			AllowOrigins:     []string{"http://localhost:5137", "http://localhost:5173", "http://localhost:3000"},
 			AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 			AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept"},
 			ExposeHeaders:    []string{"Content-Length"},

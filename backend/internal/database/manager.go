@@ -247,7 +247,15 @@ func (m *ConnectionManager) TestConnection(req *models.TestConnectionRequest) er
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, connStr)
+	// Use a minimal pool configuration for testing
+	config, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		return err
+	}
+	config.MaxConns = 1 // Only need one connection for testing
+	config.MinConns = 0
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return err
 	}
@@ -272,7 +280,17 @@ func (m *ConnectionManager) Connect(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, m.buildConnString(conn))
+	// Configure pool with limited connections to avoid exhausting PostgreSQL
+	config, err := pgxpool.ParseConfig(m.buildConnString(conn))
+	if err != nil {
+		return err
+	}
+	config.MaxConns = 5                          // Limit max connections per pool
+	config.MinConns = 0                          // Don't keep idle connections
+	config.MaxConnIdleTime = 5 * time.Minute     // Close idle connections faster
+	config.MaxConnLifetime = 30 * time.Minute    // Recycle connections
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return err
 	}

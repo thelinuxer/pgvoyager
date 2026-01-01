@@ -124,13 +124,13 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div class="modal-backdrop" onclick={handleBackdropClick}>
-	<div class="modal">
+	<div class="modal" data-testid="connection-modal">
 		<div class="modal-header">
 			<h2>
 				<Icon name="layers" size={18} />
 				{isEditMode ? 'Edit Connection' : 'New Connection'}
 			</h2>
-			<button class="modal-close" onclick={onClose} title="Close">
+			<button class="modal-close" onclick={onClose} title="Close" data-testid="modal-close">
 				<Icon name="x" size={18} />
 			</button>
 		</div>
@@ -141,6 +141,7 @@
 				<input
 					type="text"
 					id="name"
+					data-testid="input-name"
 					bind:value={form.name}
 					placeholder="My Database"
 				/>
@@ -152,6 +153,7 @@
 					<input
 						type="text"
 						id="host"
+						data-testid="input-host"
 						bind:value={form.host}
 						placeholder="localhost"
 					/>
@@ -161,6 +163,7 @@
 					<input
 						type="number"
 						id="port"
+						data-testid="input-port"
 						bind:value={form.port}
 						placeholder="5432"
 					/>
@@ -172,6 +175,7 @@
 				<input
 					type="text"
 					id="database"
+					data-testid="input-database"
 					bind:value={form.database}
 					placeholder="postgres"
 				/>
@@ -183,6 +187,7 @@
 					<input
 						type="text"
 						id="username"
+						data-testid="input-username"
 						bind:value={form.username}
 						placeholder="postgres"
 					/>
@@ -192,6 +197,7 @@
 					<input
 						type="password"
 						id="password"
+						data-testid="input-password"
 						bind:value={form.password}
 						placeholder="••••••••"
 					/>
@@ -200,7 +206,7 @@
 
 			<div class="form-group">
 				<label for="sslMode">SSL Mode</label>
-				<select id="sslMode" bind:value={form.sslMode}>
+				<select id="sslMode" data-testid="select-sslmode" bind:value={form.sslMode}>
 					<option value="disable">Disable</option>
 					<option value="prefer">Prefer</option>
 					<option value="require">Require</option>
@@ -227,18 +233,18 @@
 
 		<div class="modal-footer">
 			<div class="modal-footer-left">
-				<button class="btn btn-secondary" onclick={handleTest} disabled={isTesting}>
+				<button class="btn btn-secondary" data-testid="btn-test-connection" onclick={handleTest} disabled={isTesting}>
 					{isTesting ? 'Testing...' : 'Test Connection'}
 				</button>
 				{#if isEditMode}
-					<button class="btn btn-danger" onclick={handleDelete} disabled={isDeleting}>
+					<button class="btn btn-danger" data-testid="btn-delete" onclick={handleDelete} disabled={isDeleting}>
 						{isDeleting ? 'Deleting...' : 'Delete'}
 					</button>
 				{/if}
 			</div>
 			<div class="modal-footer-right">
-				<button class="btn btn-ghost" onclick={onClose}>Cancel</button>
-				<button class="btn btn-primary" onclick={handleSave} disabled={isSaving}>
+				<button class="btn btn-ghost" data-testid="btn-cancel" onclick={onClose}>Cancel</button>
+				<button class="btn btn-primary" data-testid="btn-save" onclick={handleSave} disabled={isSaving}>
 					{#if isSaving}
 						Saving...
 					{:else if isEditMode}

@@ -233,6 +233,24 @@
 
 	function handleEditorReady(view: EditorView) {
 		editorView = view;
+
+		// Expose a test helper for E2E tests to set the query
+		if (typeof window !== 'undefined') {
+			(window as any).__PGVOYAGER_E2E__ = (window as any).__PGVOYAGER_E2E__ || {};
+			(window as any).__PGVOYAGER_E2E__.setQuery = (newQuery: string) => {
+				query = newQuery;
+				// Also update CodeMirror directly
+				if (view) {
+					view.dispatch({
+						changes: {
+							from: 0,
+							to: view.state.doc.length,
+							insert: newQuery
+						}
+					});
+				}
+			};
+		}
 	}
 
 	function handleEditorResize(delta: number) {
@@ -370,11 +388,12 @@
 	}
 </script>
 
-<div class="query-editor" onkeydown={handleKeydown} bind:this={containerEl}>
+<div class="query-editor" data-testid="query-editor" onkeydown={handleKeydown} bind:this={containerEl}>
 	<div class="editor-section" style="flex: 0 0 {$layout.queryEditorHeight}%">
-		<div class="editor-toolbar">
+		<div class="editor-toolbar" data-testid="editor-toolbar">
 			<button
 				class="btn btn-primary btn-sm"
+				data-testid="btn-run-query"
 				onclick={executeQuery}
 				disabled={isExecuting || !query.trim()}
 			>
@@ -388,6 +407,7 @@
 			</button>
 			<button
 				class="btn btn-ghost btn-sm"
+				data-testid="btn-save-query"
 				onclick={handleSave}
 				disabled={!query.trim()}
 				title="Save Query (Ctrl+S)"
@@ -396,12 +416,12 @@
 				Save
 			</button>
 			{#if executionTime !== null}
-				<span class="execution-time">
+				<span class="execution-time" data-testid="execution-time">
 					{executionTime.toFixed(2)}ms
 				</span>
 			{/if}
 		</div>
-		<div class="editor-container">
+		<div class="editor-container" data-testid="editor-container">
 			<CodeMirror
 				bind:value={query}
 				{extensions}
@@ -412,11 +432,11 @@
 
 	<ResizeHandle direction="vertical" onResize={handleEditorResize} />
 
-	<div class="results-section">
+	<div class="results-section" data-testid="results-section">
 		{#if isExecuting}
-			<div class="results-loading">Executing query...</div>
+			<div class="results-loading" data-testid="results-loading">Executing query...</div>
 		{:else if result?.error}
-			<div class="results-error">
+			<div class="results-error" data-testid="results-error">
 				<h4>Error{#if result.errorPosition} at position {result.errorPosition}{/if}</h4>
 				<pre>{result.error}</pre>
 				{#if result.errorDetail}
@@ -431,20 +451,20 @@
 				{/if}
 			</div>
 		{:else if result}
-			<div class="results-header">
-				<span>{result.rowCount} row{result.rowCount !== 1 ? 's' : ''} returned</span>
-				<button class="btn btn-sm btn-ghost" onclick={exportToCsv} title="Export to CSV">
+			<div class="results-header" data-testid="results-header">
+				<span data-testid="row-count">{result.rowCount} row{result.rowCount !== 1 ? 's' : ''} returned</span>
+				<button class="btn btn-sm btn-ghost" data-testid="btn-export-csv" onclick={exportToCsv} title="Export to CSV">
 					<Icon name="download" size={14} />
 					Export CSV
 				</button>
 			</div>
-			<div class="results-table-container">
+			<div class="results-table-container" data-testid="results-table">
 				{#if result.columns.length > 0}
 					<table class="data-table">
 						<thead>
 							<tr>
 								{#each result.columns as col}
-									<th>{col.name}</th>
+									<th data-column="{col.name}">{col.name}</th>
 								{/each}
 							</tr>
 						</thead>

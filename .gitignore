@@ -47,3 +47,8 @@ npm-debug.log*
 
 # Config (may contain passwords)
 .pgvoyager/
+
+# E2E test artifacts
+e2e/test-results/
+e2e/playwright-report/
+e2e/.env

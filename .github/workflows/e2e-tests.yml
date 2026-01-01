@@ -1,0 +1,266 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  GO_VERSION: '1.21'
+
+jobs:
+  e2e-tests:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Install backend dependencies
+        run: go mod download
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Build backend
+        run: go build -o pgvoyager ./cmd/pgvoyager
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: npx playwright install chromium --with-deps
+
+      - name: Create E2E environment file
+        working-directory: e2e
+        run: |
+          cat > .env << EOF
+          TEST_PG_HOST=localhost
+          TEST_PG_PORT=5432
+          TEST_PG_USER=postgres
+          TEST_PG_PASSWORD=postgres
+          TEST_PG_DATABASE=pgvoyager_test
+          BASE_URL=http://localhost:5137
+          CI=true
+          EOF
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+      - name: Run Smoke Tests
+        working-directory: e2e
+        run: npm run test:smoke
+        env:
+          CI: true
+
+      - name: Run Tier 1 Tests (Critical)
+        working-directory: e2e
+        run: npm run test:tier1
+        env:
+          CI: true
+        if: success()
+
+      - name: Run Tier 2 Tests (Important)
+        working-directory: e2e
+        run: npm run test:tier2
+        env:
+          CI: true
+        if: success()
+
+      - name: Run Tier 3 Tests (Extended)
+        working-directory: e2e
+        run: npm run test:tier3
+        env:
+          CI: true
+        if: success()
+        continue-on-error: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e/test-results/
+          retention-days: 7
+
+      - name: Upload screenshots on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-screenshots
+          path: e2e/test-results/screenshots/
+          retention-days: 7
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-html-report
+          path: e2e/playwright-report/
+          retention-days: 14
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Playwright E2E Results
+          path: e2e/test-results/junit.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Add Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f e2e/test-results/junit.xml ]; then
+            TOTAL=$(grep -oP 'tests="\K[^"]+' e2e/test-results/junit.xml | head -1 || echo "0")
+            FAILURES=$(grep -oP 'failures="\K[^"]+' e2e/test-results/junit.xml | head -1 || echo "0")
+            SKIPPED=$(grep -oP 'skipped="\K[^"]+' e2e/test-results/junit.xml | head -1 || echo "0")
+            PASSED=$((TOTAL - FAILURES - SKIPPED))
+            echo "| Status | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ Failed | $FAILURES |" >> $GITHUB_STEP_SUMMARY
+            echo "| ⏭️ Skipped | $SKIPPED |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📊 Total | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No test results found" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📁 Download the **playwright-html-report** artifact for detailed results." >> $GITHUB_STEP_SUMMARY
+
+  smoke-only:
+    name: Smoke Tests Only
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Install backend dependencies
+        run: go mod download
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Build backend
+        run: go build -o pgvoyager ./cmd/pgvoyager
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: npx playwright install chromium --with-deps
+
+      - name: Create E2E environment file
+        working-directory: e2e
+        run: |
+          cat > .env << EOF
+          TEST_PG_HOST=localhost
+          TEST_PG_PORT=5432
+          TEST_PG_USER=postgres
+          TEST_PG_PASSWORD=postgres
+          TEST_PG_DATABASE=pgvoyager_test
+          BASE_URL=http://localhost:5137
+          CI=true
+          EOF
+
+      - name: Run Smoke Tests
+        working-directory: e2e
+        run: npm run test:smoke
+        env:
+          CI: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-report
+          path: e2e/test-results/
+          retention-days: 3

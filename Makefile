@@ -1,4 +1,5 @@
-.PHONY: all backend frontend dev install clean build build-prod release
+.PHONY: all backend frontend dev install clean build build-prod release \
+	e2e-install e2e-test e2e-test-headed e2e-test-ui e2e-smoke e2e-tier1 e2e-tier2 e2e-tier3 e2e-report
 
 # Version from git tag or default
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -7,14 +8,13 @@ LDFLAGS := -s -w -X github.com/thelinuxer/pgvoyager/internal/version.Version=$(V
 # Default target: run both backend and frontend
 dev:
 	@echo "Starting PgVoyager..."
-	@echo "Backend will run on http://localhost:5137"
-	@echo "Frontend will run on http://localhost:5173"
+	@echo "App available at http://localhost:5137"
 	@make -j2 backend frontend
 
-# Run backend in development mode
+# Run backend in development mode (on port 5138, proxied by frontend)
 backend:
-	@echo "Starting Go backend..."
-	cd backend && go run ./cmd/server
+	@echo "Starting Go backend on port 5138..."
+	cd backend && PGVOYAGER_PORT=5138 go run ./cmd/server
 
 # Run frontend in development mode
 frontend:
@@ -116,3 +116,53 @@ build-mcp:
 # Build frontend for production
 build-frontend:
 	cd frontend && npm run build
+
+# ====================
+# E2E Testing Commands
+# ====================
+
+# Install E2E test dependencies
+e2e-install:
+	@echo "Installing E2E test dependencies..."
+	cd e2e && npm install
+	cd e2e && npx playwright install chromium --with-deps
+
+# Run all E2E tests (headless)
+e2e-test:
+	@echo "Running all E2E tests..."
+	cd e2e && npm test
+
+# Run E2E tests in headed mode (visible browser)
+e2e-test-headed:
+	@echo "Running E2E tests in headed mode..."
+	cd e2e && npm run test:headed
+
+# Run E2E tests with Playwright UI
+e2e-test-ui:
+	@echo "Opening Playwright UI..."
+	cd e2e && npm run test:ui
+
+# Run smoke tests only
+e2e-smoke:
+	@echo "Running smoke tests..."
+	cd e2e && npm run test:smoke
+
+# Run Tier 1 (critical) tests
+e2e-tier1:
+	@echo "Running Tier 1 (critical) tests..."
+	cd e2e && npm run test:tier1
+
+# Run Tier 2 (important) tests
+e2e-tier2:
+	@echo "Running Tier 2 (important) tests..."
+	cd e2e && npm run test:tier2
+
+# Run Tier 3 (extended) tests
+e2e-tier3:
+	@echo "Running Tier 3 (extended) tests..."
+	cd e2e && npm run test:tier3
+
+# Open test report
+e2e-report:
+	@echo "Opening test report..."
+	cd e2e && npm run report

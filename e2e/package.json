@@ -1,0 +1,27 @@
+{
+  "name": "pgvoyager-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "E2E tests for PgVoyager",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:smoke": "playwright test tests/smoke/",
+    "test:tier1": "playwright test tests/tier1-critical/",
+    "test:tier2": "playwright test tests/tier2-important/",
+    "test:tier3": "playwright test tests/tier3-extended/",
+    "test:chromium": "playwright test --project=chromium",
+    "report": "playwright show-report test-results/html-report",
+    "codegen": "playwright codegen http://localhost:5137"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.10.0",
+    "@types/pg": "^8.11.0",
+    "dotenv": "^16.3.1",
+    "pg": "^8.13.0",
+    "typescript": "^5.3.0"
+  }
+}

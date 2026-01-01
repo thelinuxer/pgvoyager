@@ -255,7 +255,7 @@ LIMIT 100;`;
 	{/if}
 {/snippet}
 
-<aside class="sidebar" style="width: {width}px">
+<aside class="sidebar" data-testid="sidebar" style="width: {width}px">
 	<div class="sidebar-header">
 		<span class="sidebar-title">
 			<Icon name="search" size={12} />
@@ -271,7 +271,7 @@ LIMIT 100;`;
 			<button class="btn btn-sm btn-ghost" onclick={() => tabs.openAnalysis()} title="Analyze Database" disabled={!$activeConnection}>
 				<Icon name="activity" size={14} />
 			</button>
-			<button class="btn btn-sm btn-ghost" onclick={() => tabs.openQuery()} title="New Query">
+			<button class="btn btn-sm btn-ghost" data-testid="btn-new-query" onclick={() => tabs.openQuery()} title="New Query">
 				<Icon name="file-code" size={14} />
 			</button>
 		</div>
@@ -323,7 +323,7 @@ LIMIT 100;`;
 		{:else if $schemaTree.length === 0}
 			<div class="sidebar-empty">No schemas found</div>
 		{:else}
-			<div class="tree">
+			<div class="tree" data-testid="schema-tree">
 				{#each filteredTree as node}
 					{@render treeNode(node, 0)}
 				{/each}
@@ -423,9 +423,10 @@ LIMIT 100;`;
 {/if}
 
 {#snippet treeNode(node: SchemaTreeNode, depth: number)}
-	<div class="tree-item" style="padding-left: {depth * 16 + 8}px">
+	<div class="tree-item" data-testid="tree-item-{node.name}" data-node-type="{node.type}" style="padding-left: {depth * 16 + 8}px">
 		<button
 			class="tree-item-button"
+			data-testid="tree-button-{node.name}"
 			onclick={() => handleNodeClick(node)}
 			ondblclick={() => handleDoubleClick(node)}
 			oncontextmenu={(e) => handleContextMenu(e, node)}

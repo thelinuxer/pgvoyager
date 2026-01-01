@@ -2,14 +2,12 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/thelinuxer/pgvoyager/internal/models"
+	"github.com/thelinuxer/pgvoyager/internal/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,22 +21,13 @@ type ConnectionManager struct {
 	mu          sync.RWMutex
 	connections map[string]*models.Connection
 	pools       map[string]*pgxpool.Pool
-	configPath  string
 }
 
 func GetManager() *ConnectionManager {
 	managerOnce.Do(func() {
-		configDir, err := os.UserConfigDir()
-		if err != nil {
-			configDir = os.TempDir()
-		}
-		pgvoyagerDir := filepath.Join(configDir, "pgvoyager")
-		os.MkdirAll(pgvoyagerDir, 0755)
-
 		manager = &ConnectionManager{
 			connections: make(map[string]*models.Connection),
 			pools:       make(map[string]*pgxpool.Pool),
-			configPath:  filepath.Join(pgvoyagerDir, "connections.json"),
 		}
 		manager.loadConnections()
 	})
@@ -49,47 +38,41 @@ func (m *ConnectionManager) loadConnections() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	data, err := os.ReadFile(m.configPath)
+	db, err := storage.GetDB()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
+		return err
+	}
+
+	rows, err := db.Query(`
+		SELECT id, name, host, port, database, username, password, ssl_mode, created_at
+		FROM connections
+	`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		conn := &models.Connection{}
+		err := rows.Scan(
+			&conn.ID,
+			&conn.Name,
+			&conn.Host,
+			&conn.Port,
+			&conn.Database,
+			&conn.Username,
+			&conn.Password,
+			&conn.SSLMode,
+			&conn.CreatedAt,
+		)
+		if err != nil {
+			return err
 		}
-		return err
-	}
-
-	var connections []*models.Connection
-	if err := json.Unmarshal(data, &connections); err != nil {
-		return err
-	}
-
-	for _, conn := range connections {
 		conn.IsConnected = false
+		conn.UpdatedAt = conn.CreatedAt
 		m.connections[conn.ID] = conn
 	}
-	return nil
-}
-
-// saveConnectionsLocked saves connections to disk. Caller must hold the lock.
-func (m *ConnectionManager) saveConnectionsLocked() error {
-	connections := make([]*models.Connection, 0, len(m.connections))
-	for _, conn := range m.connections {
-		// Don't save password in plain text - this should use secure storage
-		connCopy := *conn
-		connections = append(connections, &connCopy)
-	}
-
-	data, err := json.MarshalIndent(connections, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(m.configPath, data, 0600)
-}
-
-func (m *ConnectionManager) saveConnections() error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.saveConnectionsLocked()
+	return rows.Err()
 }
 
 func (m *ConnectionManager) List() []*models.Connection {
@@ -149,13 +132,22 @@ func (m *ConnectionManager) Create(req *models.ConnectionRequest) (*models.Conne
 		conn.SSLMode = "prefer"
 	}
 
+	db, err := storage.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = db.Exec(`
+		INSERT INTO connections (id, name, host, port, database, username, password, ssl_mode, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, conn.ID, conn.Name, conn.Host, conn.Port, conn.Database, conn.Username, conn.Password, conn.SSLMode, conn.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
 	m.mu.Lock()
 	m.connections[conn.ID] = conn
 	m.mu.Unlock()
-
-	if err := m.saveConnections(); err != nil {
-		return nil, err
-	}
 
 	connCopy := *conn
 	connCopy.Password = ""
@@ -182,7 +174,17 @@ func (m *ConnectionManager) Update(id string, req *models.ConnectionRequest) (*m
 	conn.SSLMode = req.SSLMode
 	conn.UpdatedAt = time.Now()
 
-	if err := m.saveConnectionsLocked(); err != nil {
+	db, err := storage.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = db.Exec(`
+		UPDATE connections
+		SET name = ?, host = ?, port = ?, database = ?, username = ?, password = ?, ssl_mode = ?
+		WHERE id = ?
+	`, conn.Name, conn.Host, conn.Port, conn.Database, conn.Username, conn.Password, conn.SSLMode, id)
+	if err != nil {
 		return nil, err
 	}
 
@@ -205,8 +207,18 @@ func (m *ConnectionManager) Delete(id string) error {
 		delete(m.pools, id)
 	}
 
+	db, err := storage.GetDB()
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec("DELETE FROM connections WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+
 	delete(m.connections, id)
-	return m.saveConnectionsLocked()
+	return nil
 }
 
 func (m *ConnectionManager) buildConnString(conn *models.Connection) string {

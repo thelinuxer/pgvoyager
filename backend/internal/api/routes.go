@@ -63,6 +63,24 @@ func RegisterRoutes(r *gin.Engine) {
 		// Database analysis
 		api.GET("/analysis/:connId", handlers.RunAnalysis)
 
+		// Query history
+		history := api.Group("/history")
+		{
+			history.GET("", handlers.GetQueryHistory)
+			history.POST("", handlers.AddQueryHistory)
+			history.DELETE("/:id", handlers.DeleteQueryHistory)
+			history.DELETE("", handlers.ClearQueryHistory)
+		}
+
+		// Preferences
+		prefs := api.Group("/preferences")
+		{
+			prefs.GET("", handlers.GetPreferences)
+			prefs.GET("/:key", handlers.GetPreference)
+			prefs.POST("", handlers.SetPreference)
+			prefs.DELETE("/:key", handlers.DeletePreference)
+		}
+
 		// Saved queries
 		queries := api.Group("/queries")
 		{

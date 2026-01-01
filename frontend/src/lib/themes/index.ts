@@ -2,12 +2,19 @@ import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 import { themes, themeList, type Theme, type ThemeColors } from './themes';
 
-const STORAGE_KEY = 'pgvoyager-theme';
 const DEFAULT_THEME = 'catppuccin-mocha';
+const PREF_KEY = 'theme';
 
-function getInitialTheme(): string {
+async function getInitialTheme(): Promise<string> {
 	if (!browser) return DEFAULT_THEME;
-	return localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+	try {
+		const response = await fetch(`/api/preferences/${PREF_KEY}`);
+		if (!response.ok) return DEFAULT_THEME;
+		const data = await response.json();
+		return data.value || DEFAULT_THEME;
+	} catch {
+		return DEFAULT_THEME;
+	}
 }
 
 function applyTheme(theme: Theme) {
@@ -47,21 +54,31 @@ function applyTheme(theme: Theme) {
 }
 
 function createThemeStore() {
-	const { subscribe, set, update } = writable<string>(getInitialTheme());
+	const { subscribe, set } = writable<string>(DEFAULT_THEME);
 
 	return {
 		subscribe,
-		setTheme: (themeId: string) => {
+		setTheme: async (themeId: string) => {
 			if (!themes[themeId]) return;
 			set(themeId);
 			if (browser) {
-				localStorage.setItem(STORAGE_KEY, themeId);
 				applyTheme(themes[themeId]);
+				// Save to backend
+				try {
+					await fetch('/api/preferences', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ key: PREF_KEY, value: themeId })
+					});
+				} catch (e) {
+					console.error('Failed to save theme preference:', e);
+				}
 			}
 		},
-		initialize: () => {
+		initialize: async () => {
 			if (browser) {
-				const themeId = getInitialTheme();
+				const themeId = await getInitialTheme();
+				set(themeId);
 				if (themes[themeId]) {
 					applyTheme(themes[themeId]);
 				}

@@ -40,9 +40,9 @@ build:
 # Build production single binary with embedded frontend
 build-prod: build-frontend-prod
 	@echo "Building production binary..."
-	cd backend && CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../bin/pgvoyager ./cmd/server
+	cd backend && go build -ldflags="$(LDFLAGS)" -o ../bin/pgvoyager ./cmd/server
 	@echo "Building MCP server..."
-	cd backend && CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../bin/pgvoyager-mcp ./cmd/mcp
+	cd backend && go build -ldflags="$(LDFLAGS)" -o ../bin/pgvoyager-mcp ./cmd/mcp
 	@echo "Production build complete: bin/pgvoyager"
 
 # Build frontend and copy to backend/web/dist for embedding

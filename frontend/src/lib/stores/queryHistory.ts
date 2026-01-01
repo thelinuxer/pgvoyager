@@ -12,68 +12,84 @@ export interface QueryHistoryEntry {
 	error?: string;
 }
 
-const STORAGE_KEY = 'pgvoyager_query_history';
-const MAX_HISTORY_SIZE = 100;
+const API_BASE = '/api/history';
 
-function loadFromStorage(): QueryHistoryEntry[] {
+async function loadFromBackend(): Promise<QueryHistoryEntry[]> {
 	if (typeof window === 'undefined') return [];
 	try {
-		const stored = localStorage.getItem(STORAGE_KEY);
-		return stored ? JSON.parse(stored) : [];
+		const response = await fetch(API_BASE);
+		if (!response.ok) return [];
+		return await response.json();
 	} catch {
 		return [];
 	}
 }
 
-function saveToStorage(entries: QueryHistoryEntry[]) {
-	if (typeof window === 'undefined') return;
-	try {
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-	} catch {
-		// Storage full or unavailable, silently fail
-	}
-}
-
 function createQueryHistoryStore() {
-	const { subscribe, set, update } = writable<QueryHistoryEntry[]>(loadFromStorage());
+	const { subscribe, set, update } = writable<QueryHistoryEntry[]>([]);
+
+	// Load initial data
+	if (typeof window !== 'undefined') {
+		loadFromBackend().then(set);
+	}
 
 	return {
 		subscribe,
 
-		add(entry: Omit<QueryHistoryEntry, 'id' | 'executedAt'>) {
-			update((entries) => {
-				const newEntry: QueryHistoryEntry = {
-					...entry,
-					id: crypto.randomUUID(),
-					executedAt: new Date().toISOString()
-				};
+		async add(entry: Omit<QueryHistoryEntry, 'id' | 'executedAt'>) {
+			try {
+				const response = await fetch(API_BASE, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(entry)
+				});
+				if (!response.ok) throw new Error('Failed to add history');
 
-				// Add to beginning, limit size
-				const updated = [newEntry, ...entries].slice(0, MAX_HISTORY_SIZE);
-				saveToStorage(updated);
-				return updated;
-			});
+				const newEntry = await response.json();
+				update((entries) => [newEntry, ...entries]);
+			} catch (e) {
+				console.error('Failed to add query history:', e);
+			}
 		},
 
-		remove(id: string) {
-			update((entries) => {
-				const updated = entries.filter((e) => e.id !== id);
-				saveToStorage(updated);
-				return updated;
-			});
+		async remove(id: string) {
+			try {
+				const response = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+				if (!response.ok) throw new Error('Failed to remove history');
+
+				update((entries) => entries.filter((e) => e.id !== id));
+			} catch (e) {
+				console.error('Failed to remove query history:', e);
+			}
 		},
 
-		clear() {
-			set([]);
-			saveToStorage([]);
+		async clear() {
+			try {
+				const response = await fetch(API_BASE, { method: 'DELETE' });
+				if (!response.ok) throw new Error('Failed to clear history');
+
+				set([]);
+			} catch (e) {
+				console.error('Failed to clear query history:', e);
+			}
 		},
 
-		clearForConnection(connectionId: string) {
-			update((entries) => {
-				const updated = entries.filter((e) => e.connectionId !== connectionId);
-				saveToStorage(updated);
-				return updated;
-			});
+		async clearForConnection(connectionId: string) {
+			try {
+				const response = await fetch(`${API_BASE}?connectionId=${connectionId}`, {
+					method: 'DELETE'
+				});
+				if (!response.ok) throw new Error('Failed to clear history');
+
+				update((entries) => entries.filter((e) => e.connectionId !== connectionId));
+			} catch (e) {
+				console.error('Failed to clear connection history:', e);
+			}
+		},
+
+		async refresh() {
+			const entries = await loadFromBackend();
+			set(entries);
 		},
 
 		getByConnection(connectionId: string): QueryHistoryEntry[] {

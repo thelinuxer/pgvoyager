@@ -15,35 +15,46 @@ const DEFAULT_LAYOUT: LayoutState = {
 	claudeTerminalVisible: false
 };
 
-const STORAGE_KEY = 'pgvoyager-layout';
+const PREF_KEY = 'layout';
 
-function loadLayout(): LayoutState {
+async function loadLayout(): Promise<LayoutState> {
 	if (!browser) return DEFAULT_LAYOUT;
 
 	try {
-		const stored = localStorage.getItem(STORAGE_KEY);
-		if (stored) {
-			const parsed = JSON.parse(stored);
+		const response = await fetch(`/api/preferences/${PREF_KEY}`);
+		if (!response.ok) return DEFAULT_LAYOUT;
+		const data = await response.json();
+		if (data.value) {
+			const parsed = JSON.parse(data.value);
 			return { ...DEFAULT_LAYOUT, ...parsed };
 		}
 	} catch (e) {
-		console.warn('Failed to load layout from localStorage:', e);
+		console.warn('Failed to load layout from backend:', e);
 	}
 	return DEFAULT_LAYOUT;
 }
 
-function saveLayout(layout: LayoutState) {
+async function saveLayout(layout: LayoutState) {
 	if (!browser) return;
 
 	try {
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+		await fetch('/api/preferences', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ key: PREF_KEY, value: JSON.stringify(layout) })
+		});
 	} catch (e) {
-		console.warn('Failed to save layout to localStorage:', e);
+		console.warn('Failed to save layout to backend:', e);
 	}
 }
 
 function createLayoutStore() {
-	const { subscribe, set, update } = writable<LayoutState>(loadLayout());
+	const { subscribe, set, update } = writable<LayoutState>(DEFAULT_LAYOUT);
+
+	// Load initial layout
+	if (browser) {
+		loadLayout().then(set);
+	}
 
 	return {
 		subscribe,

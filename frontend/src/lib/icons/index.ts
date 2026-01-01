@@ -13,27 +13,47 @@ export interface IconData {
 	}>;
 }
 
-const STORAGE_KEY = 'pgvoyager-icon-library';
+const PREF_KEY = 'icon-library';
 const DEFAULT_LIBRARY: IconLibrary = 'lucide';
 
-function getInitialLibrary(): IconLibrary {
+async function getInitialLibrary(): Promise<IconLibrary> {
 	if (!browser) return DEFAULT_LIBRARY;
-	const stored = localStorage.getItem(STORAGE_KEY);
-	if (stored && ['lucide', 'heroicons', 'phosphor', 'tabler'].includes(stored)) {
-		return stored as IconLibrary;
+	try {
+		const response = await fetch(`/api/preferences/${PREF_KEY}`);
+		if (!response.ok) return DEFAULT_LIBRARY;
+		const data = await response.json();
+		const stored = data.value;
+		if (stored && ['lucide', 'heroicons', 'phosphor', 'tabler'].includes(stored)) {
+			return stored as IconLibrary;
+		}
+	} catch {
+		// Fall through to default
 	}
 	return DEFAULT_LIBRARY;
 }
 
 function createIconLibraryStore() {
-	const { subscribe, set } = writable<IconLibrary>(getInitialLibrary());
+	const { subscribe, set } = writable<IconLibrary>(DEFAULT_LIBRARY);
+
+	// Load initial library
+	if (browser) {
+		getInitialLibrary().then(set);
+	}
 
 	return {
 		subscribe,
-		setLibrary: (library: IconLibrary) => {
+		setLibrary: async (library: IconLibrary) => {
 			set(library);
 			if (browser) {
-				localStorage.setItem(STORAGE_KEY, library);
+				try {
+					await fetch('/api/preferences', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ key: PREF_KEY, value: library })
+					});
+				} catch (e) {
+					console.error('Failed to save icon library preference:', e);
+				}
 			}
 		},
 		get: () => get({ subscribe })

@@ -3,16 +3,9 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<link rel="icon" type="image/png" sizes="128x128" href="/favicon.png" />
-		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+		<link rel="icon" type="image/png" sizes="256x256" href="/favicon.png?v=4" />
+		<link rel="icon" type="image/png" sizes="64x64" href="/favicon-32.png?v=4" />
 		<title>PgVoyager</title>
-		<script>
-			// Apply theme before paint to prevent flash
-			(function() {
-				const themeId = localStorage.getItem('pgvoyager-theme') || 'catppuccin-mocha';
-				document.documentElement.dataset.theme = themeId;
-			})();
-		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

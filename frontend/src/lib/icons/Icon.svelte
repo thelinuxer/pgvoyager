@@ -21,6 +21,7 @@
 		tabler: tablerIcons
 	};
 
+	// Use $derived.by to look up the icon based on the current library
 	let iconData = $derived.by(() => {
 		const lib = libraries[$iconLibrary];
 		return lib?.[name] || lucideIcons[name];

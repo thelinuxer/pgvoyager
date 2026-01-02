@@ -21,6 +21,8 @@ function createTabsStore() {
 				forceNew?: boolean;
 			}
 		) => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				// Check if tab already exists (only for requests without special options)
 				const existing = tabs.find(
@@ -28,7 +30,7 @@ function createTabsStore() {
 				);
 				if (existing && !options?.filter && !options?.sort && !options?.forceNew) {
 					// Just activate it (only for simple requests)
-					activeTabId.set(existing.id);
+					tabIdToActivate = existing.id;
 					return tabs;
 				}
 
@@ -69,12 +71,19 @@ function createTabsStore() {
 					newTabs[unpinnedIndex] = newTab;
 				}
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		openQuery: (options?: { title?: string; initialSql?: string }) => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				const queryCount = tabs.filter((t) => t.type === 'query').length;
 				const newTab: Tab = {
@@ -85,18 +94,25 @@ function createTabsStore() {
 					initialSql: options?.initialSql
 				};
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return [...tabs, newTab];
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		openView: (schema: string, view: string) => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				const existing = tabs.find(
 					(t) => t.type === 'view' && t.schema === schema && t.view === view
 				);
 				if (existing) {
-					activeTabId.set(existing.id);
+					tabIdToActivate = existing.id;
 					return tabs;
 				}
 
@@ -119,18 +135,25 @@ function createTabsStore() {
 					newTabs[unpinnedIndex] = newTab;
 				}
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		openFunction: (schema: string, functionName: string) => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				const existing = tabs.find(
 					(t) => t.type === 'function' && t.schema === schema && t.functionName === functionName
 				);
 				if (existing) {
-					activeTabId.set(existing.id);
+					tabIdToActivate = existing.id;
 					return tabs;
 				}
 
@@ -153,18 +176,25 @@ function createTabsStore() {
 					newTabs[unpinnedIndex] = newTab;
 				}
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		openSequence: (schema: string, sequenceName: string) => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				const existing = tabs.find(
 					(t) => t.type === 'sequence' && t.schema === schema && t.sequenceName === sequenceName
 				);
 				if (existing) {
-					activeTabId.set(existing.id);
+					tabIdToActivate = existing.id;
 					return tabs;
 				}
 
@@ -187,18 +217,25 @@ function createTabsStore() {
 					newTabs[unpinnedIndex] = newTab;
 				}
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		openType: (schema: string, typeName: string) => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				const existing = tabs.find(
 					(t) => t.type === 'type' && t.schema === schema && t.typeName === typeName
 				);
 				if (existing) {
-					activeTabId.set(existing.id);
+					tabIdToActivate = existing.id;
 					return tabs;
 				}
 
@@ -221,13 +258,20 @@ function createTabsStore() {
 					newTabs[unpinnedIndex] = newTab;
 				}
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		// Open ERD for a specific table (table-centered view)
 		openTableERD: (schema: string, table: string) => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				const initialLocation: ERDLocation = { schema, centeredTable: table };
 				const newTab: Tab = {
@@ -251,13 +295,20 @@ function createTabsStore() {
 					newTabs[unpinnedIndex] = newTab;
 				}
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		// Open ERD for entire schema (full schema view)
 		openSchemaERD: (schema: string) => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				const initialLocation: ERDLocation = { schema };
 				const newTab: Tab = {
@@ -280,18 +331,25 @@ function createTabsStore() {
 					newTabs[unpinnedIndex] = newTab;
 				}
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		// Open database analysis tab
 		openAnalysis: () => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				// Check if analysis tab already exists
 				const existing = tabs.find((t) => t.type === 'analysis');
 				if (existing) {
-					activeTabId.set(existing.id);
+					tabIdToActivate = existing.id;
 					return tabs;
 				}
 
@@ -312,9 +370,14 @@ function createTabsStore() {
 					newTabs[unpinnedIndex] = newTab;
 				}
 
-				activeTabId.set(newTab.id);
+				tabIdToActivate = newTab.id;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			}
 		},
 
 		// Navigate to a different table within ERD tab (push to stack)
@@ -450,7 +513,8 @@ function createTabsStore() {
 
 			if (currentTab.isPinned) {
 				// Pinned tab: open in new tab (or replace unpinned tab)
-				// Use a custom update to handle this
+				let tabIdToActivate: string | null = null;
+
 				update((tabs) => {
 					// Find first unpinned tab to potentially replace
 					const unpinnedIndex = tabs.findIndex((t) => !t.isPinned);
@@ -477,9 +541,14 @@ function createTabsStore() {
 						newTabs[unpinnedIndex] = newTab;
 					}
 
-					activeTabId.set(newTab.id);
+					tabIdToActivate = newTab.id;
 					return newTabs;
 				});
+
+				// Set activeTabId AFTER tabs update completes to prevent race condition
+				if (tabIdToActivate) {
+					activeTabId.set(tabIdToActivate);
+				}
 			} else {
 				// Unpinned tab: navigate within the same tab
 				update((tabs) => {
@@ -636,6 +705,9 @@ function createTabsStore() {
 		},
 
 		close: (id: string) => {
+			let tabIdToActivate: string | null = null;
+			let shouldClearActiveTab = false;
+
 			update((tabs) => {
 				const index = tabs.findIndex((t) => t.id === id);
 				if (index === -1) return tabs;
@@ -643,43 +715,60 @@ function createTabsStore() {
 				const newTabs = tabs.filter((t) => t.id !== id);
 
 				// If closing active tab, activate the nearest tab
-				let currentActiveId: string | null = null;
-				activeTabId.subscribe((v) => (currentActiveId = v))();
+				const currentActiveId = get(activeTabId);
 
 				if (currentActiveId === id && newTabs.length > 0) {
 					const newIndex = Math.min(index, newTabs.length - 1);
-					activeTabId.set(newTabs[newIndex].id);
+					tabIdToActivate = newTabs[newIndex].id;
 				} else if (newTabs.length === 0) {
-					activeTabId.set(null);
+					shouldClearActiveTab = true;
 				}
 
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (tabIdToActivate) {
+				activeTabId.set(tabIdToActivate);
+			} else if (shouldClearActiveTab) {
+				activeTabId.set(null);
+			}
 		},
 
 		closeOthers: (id: string) => {
+			let shouldActivate = false;
+
 			update((tabs) => {
 				const tab = tabs.find((t) => t.id === id);
 				if (!tab) return tabs;
 
 				// Keep pinned tabs and the specified tab
 				const newTabs = tabs.filter((t) => t.id === id || t.isPinned);
-				activeTabId.set(id);
+				shouldActivate = true;
 				return newTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			if (shouldActivate) {
+				activeTabId.set(id);
+			}
 		},
 
 		closeAll: () => {
+			let tabIdToActivate: string | null = null;
+
 			update((tabs) => {
 				// Keep only pinned tabs
 				const pinnedTabs = tabs.filter((t) => t.isPinned);
 				if (pinnedTabs.length > 0) {
-					activeTabId.set(pinnedTabs[0].id);
-				} else {
-					activeTabId.set(null);
+					tabIdToActivate = pinnedTabs[0].id;
 				}
 				return pinnedTabs;
 			});
+
+			// Set activeTabId AFTER tabs update completes to prevent race condition
+			// Note: tabIdToActivate will be null if no pinned tabs, which clears the active tab
+			activeTabId.set(tabIdToActivate);
 		},
 
 		togglePin: (id: string) => {

@@ -15,6 +15,7 @@
 	import type { Connection, SavedQuery } from '$lib/types';
 	import { onMount } from 'svelte';
 
+	// Use individual $state variables
 	let showConnectionModal = $state(false);
 	let showHistoryPanel = $state(false);
 	let showSavedQueriesPanel = $state(false);

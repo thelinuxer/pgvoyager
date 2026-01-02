@@ -9,11 +9,19 @@
 	interface Props {
 		width: number;
 		onNewConnection: () => void;
-		onShowHistory: () => void;
-		onShowSavedQueries: () => void;
+		onShowHistory?: () => void;
+		onShowSavedQueries?: () => void;
 	}
 
 	let { width, onNewConnection, onShowHistory, onShowSavedQueries }: Props = $props();
+
+	function handleShowHistory() {
+		onShowHistory?.();
+	}
+
+	function handleShowSavedQueries() {
+		onShowSavedQueries?.();
+	}
 
 	let searchQuery = $state('');
 
@@ -71,7 +79,14 @@
 			.filter((node): node is SchemaTreeNode => node !== null);
 	}
 
-	let filteredTree = $derived(filterTree($schemaTree, searchQuery));
+	// Use $state + $effect instead of $derived with Svelte 4 store to prevent reactivity issues
+	let filteredTree = $state<SchemaTreeNode[]>([]);
+
+	$effect(() => {
+		const tree = $schemaTree;
+		const query = searchQuery;
+		filteredTree = filterTree(tree, query);
+	});
 
 	function handleNodeClick(node: SchemaTreeNode) {
 		if (node.type === 'schema' || node.type === 'folder') {
@@ -262,18 +277,20 @@ LIMIT 100;`;
 			Explorer
 		</span>
 		<div class="sidebar-actions">
-			<button class="btn btn-sm btn-ghost" onclick={onShowSavedQueries} title="Saved Queries">
-				<Icon name="save" size={14} />
-			</button>
-			<button class="btn btn-sm btn-ghost" onclick={onShowHistory} title="Query History">
-				<Icon name="clock" size={14} />
-			</button>
-			<button class="btn btn-sm btn-ghost" onclick={() => tabs.openAnalysis()} title="Analyze Database" disabled={!$activeConnection}>
-				<Icon name="activity" size={14} />
-			</button>
-			<button class="btn btn-sm btn-ghost" data-testid="btn-new-query" onclick={() => tabs.openQuery()} title="New Query">
-				<Icon name="file-code" size={14} />
-			</button>
+			{#if $activeConnection}
+				<button class="btn btn-sm btn-ghost" onclick={handleShowSavedQueries} title="Saved Queries">
+					<Icon name="save" size={14} />
+				</button>
+				<button class="btn btn-sm btn-ghost" onclick={handleShowHistory} title="Query History">
+					<Icon name="clock" size={14} />
+				</button>
+				<button class="btn btn-sm btn-ghost" onclick={() => tabs.openAnalysis()} title="Analyze Database">
+					<Icon name="activity" size={14} />
+				</button>
+				<button class="btn btn-sm btn-ghost" data-testid="btn-new-query" onclick={() => tabs.openQuery()} title="New Query">
+					<Icon name="file-code" size={14} />
+				</button>
+			{/if}
 		</div>
 	</div>
 

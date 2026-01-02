@@ -72,7 +72,7 @@ func GetQueryHistory(connectionID string, limit int) ([]QueryHistoryEntry, error
 	}
 	defer rows.Close()
 
-	var entries []QueryHistoryEntry
+	entries := []QueryHistoryEntry{}
 	for rows.Next() {
 		var entry QueryHistoryEntry
 		var errorStr sql.NullString

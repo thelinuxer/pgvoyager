@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import { activeConnectionId, activeConnection } from '$lib/stores/connections';
 	import { queryApi } from '$lib/api/client';
 	import { layout } from '$lib/stores/layout';
@@ -140,27 +140,44 @@
 	let containerEl: HTMLDivElement;
 
 	// Detect tab switches and load the appropriate content
+	// Use untrack for reading currentTabId to prevent infinite loop
+	// (we're updating currentTabId inside the effect, so reading it would re-trigger)
 	$effect(() => {
-		if (tab.id !== currentTabId) {
+		const newTabId = tab.id;
+		const oldTabId = untrack(() => currentTabId);
+
+		if (newTabId !== oldTabId) {
 			// Tab changed - load content for the new tab
-			currentTabId = tab.id;
+			currentTabId = newTabId;
 			query = tab.queryContent ?? tab.initialSql ?? 'SELECT * FROM ';
 			result = null;
 			executionTime = null;
 		}
 	});
 
-	// Persist query content to tab state when it changes (debounced via effect batching)
+	// Persist query content to tab state when it changes
+	// Use untrack for both the store update AND the tab.id read to prevent infinite loop:
+	// Without untrack on tab.id, this effect re-runs when tabs.updateQueryContent updates
+	// the tab, because the parent passes a new tab prop reference
 	$effect(() => {
-		// Only save if we have actual content and it's different from what's stored
-		if (query !== undefined) {
-			tabs.updateQueryContent(tab.id, query);
+		const currentQuery = query;
+		// Use untrack to avoid dependency on tab prop (prevents re-trigger loop)
+		const tabId = untrack(() => currentTabId);
+		// Only save if we have actual content
+		if (currentQuery !== undefined && tabId) {
+			untrack(() => {
+				tabs.updateQueryContent(tabId, currentQuery);
+			});
 		}
 	});
 
 	// Sync query changes to the editor store for Claude to access
+	// Use untrack to prevent the store update from creating reactive dependencies
 	$effect(() => {
-		editorStore.setContent(query);
+		const currentQuery = query;
+		untrack(() => {
+			editorStore.setContent(currentQuery);
+		});
 	});
 
 	// Subscribe to pending actions from Claude

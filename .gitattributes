@@ -1,0 +1,16 @@
+# Language detection for GitHub
+# Ensure Go is properly detected alongside Svelte
+
+# Mark frontend build output as generated
+frontend/build/** linguist-generated
+backend/web/dist/** linguist-generated
+
+# Mark node_modules and package-lock as vendored
+**/node_modules/** linguist-vendored
+**/package-lock.json linguist-generated
+
+# Explicitly mark Go files
+*.go linguist-language=Go
+
+# Mark Svelte files
+*.svelte linguist-language=Svelte

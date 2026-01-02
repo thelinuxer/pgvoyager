@@ -5,14 +5,23 @@
 <h1 align="center">PgVoyager</h1>
 
 <p align="center">
-  <strong>A PostgreSQL database explorer with an embedded Claude Code terminal</strong><br>
-  Built entirely through vibe coding with Claude
+  <strong>A modern PostgreSQL database explorer with schema browser, SQL editor, ERD visualization, and embedded Claude Code terminal</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/thelinuxer/pgvoyager/releases/latest"><img src="https://img.shields.io/github/v/release/thelinuxer/pgvoyager?style=flat-square&color=blue" alt="Latest Release"></a>
+  <a href="https://github.com/thelinuxer/pgvoyager/blob/master/LICENSE"><img src="https://img.shields.io/github/license/thelinuxer/pgvoyager?style=flat-square" alt="License"></a>
+  <a href="https://github.com/thelinuxer/pgvoyager/actions"><img src="https://img.shields.io/github/actions/workflow/status/thelinuxer/pgvoyager/e2e-tests.yml?style=flat-square&label=tests" alt="Tests"></a>
+  <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go" alt="Go">
+  <img src="https://img.shields.io/badge/Svelte-5-FF3E00?style=flat-square&logo=svelte" alt="Svelte">
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 </p>
 
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#getting-started">Getting Started</a> •
+  <a href="#mcp-integration">MCP Integration</a> •
   <a href="#development">Development</a> •
   <a href="https://github.com/thelinuxer/pgvoyager/releases">Releases</a>
 </p>
@@ -151,21 +160,13 @@ make dev
 
 Starts backend on `http://localhost:5137` and frontend on `http://localhost:5173`.
 
-## Architecture
+## MCP Integration
 
-```
-Frontend (Svelte) <──WebSocket──> Backend (Go) ──PTY──> Claude Code CLI
-                                       │                       │
-                                       │                       │ MCP
-                                       │                       ▼
-                                       └────────────> PgVoyager MCP Server
-```
+PgVoyager includes a Model Context Protocol (MCP) server that enables Claude to interact directly with your database. The MCP server is automatically configured when you open the Claude terminal.
 
-- **Frontend**: SvelteKit 2 + Svelte 5, CodeMirror for SQL, xterm.js for terminal
-- **Backend**: Go + Gin, manages database connections and Claude sessions
-- **MCP Server**: Separate Go binary that gives Claude access to database tools
+### Available Tools
 
-### MCP Tools
+Claude can use these tools to help you work with your database:
 
 | Tool | Description |
 |------|-------------|
@@ -183,6 +184,55 @@ Frontend (Svelte) <──WebSocket──> Backend (Go) ──PTY──> Claude C
 | `insert_to_editor` | Insert text into the editor |
 | `replace_editor_content` | Replace editor content |
 
+### Example Prompts
+
+- "Show me all tables in the public schema"
+- "Write a query to find users who haven't logged in for 30 days"
+- "Analyze the orders table and suggest indexes"
+- "Help me understand the relationship between users and orders"
+
+## Architecture
+
+PgVoyager is built with **Go** for the backend and **Svelte** for the frontend:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              Browser                                     │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    Frontend (SvelteKit + Svelte 5)                │  │
+│  │  • Schema Browser    • SQL Editor (CodeMirror)                   │  │
+│  │  • ERD Viewer        • Terminal (xterm.js)                       │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                          HTTP / WebSocket
+                                    │
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Backend (Go + Gin)                              │
+│  • Connection Management    • Query Execution                          │
+│  • Schema Introspection     • Claude Session Manager (PTY)             │
+│  • Query History            • Static File Server                       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                          MCP Protocol
+                                    │
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      MCP Server (Go binary)                             │
+│  • Database Tools           • Editor Integration                       │
+│  • Schema Discovery         • Query Execution                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+```
+
+### Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| **Backend** | Go 1.24+, Gin web framework, lib/pq PostgreSQL driver |
+| **Frontend** | SvelteKit 2, Svelte 5, TypeScript, CodeMirror 6, xterm.js |
+| **Database** | PostgreSQL (any version), SQLite (for local storage) |
+| **AI Integration** | Claude Code CLI, Model Context Protocol (MCP) |
+
 ## Troubleshooting
 
 ### Claude terminal not working
@@ -196,3 +246,33 @@ claude --version
 ### Connection issues
 
 Check that your PostgreSQL server is running and accessible. SSL is enabled by default; you can disable it in the connection settings.
+
+### Port already in use
+
+PgVoyager runs on port 5137 by default. If it's in use, set the `PGVOYAGER_PORT` environment variable:
+
+```bash
+PGVOYAGER_PORT=5200 ./pgvoyager
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [Claude Code](https://claude.ai) - Anthropic's AI coding assistant
+- [Gin](https://gin-gonic.com/) - Go web framework
+- [SvelteKit](https://kit.svelte.dev/) - Web application framework
+- [CodeMirror](https://codemirror.net/) - Code editor component
+- [xterm.js](https://xtermjs.org/) - Terminal emulator

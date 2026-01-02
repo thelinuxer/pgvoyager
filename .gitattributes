@@ -1,7 +1,15 @@
 # Language detection for GitHub
-# Ensure Go is properly detected alongside Svelte
+# Ensure Go is the primary language shown
 
-# Mark frontend build output as generated
+# Mark frontend as vendored (not counted in language stats)
+frontend/** linguist-vendored=false
+frontend/src/**/*.ts linguist-detectable=false
+frontend/src/**/*.js linguist-detectable=false
+
+# Mark e2e tests as not detectable
+e2e/** linguist-detectable=false
+
+# Mark build output as generated
 frontend/build/** linguist-generated
 backend/web/dist/** linguist-generated
 
@@ -9,8 +17,8 @@ backend/web/dist/** linguist-generated
 **/node_modules/** linguist-vendored
 **/package-lock.json linguist-generated
 
-# Explicitly mark Go files
-*.go linguist-language=Go
+# Explicitly mark Go files as detectable
+*.go linguist-detectable=true
 
-# Mark Svelte files
-*.svelte linguist-language=Svelte
+# Mark Svelte files as detectable
+*.svelte linguist-detectable=true

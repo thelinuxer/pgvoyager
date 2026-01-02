@@ -115,7 +115,7 @@ if [ -f "${INSTALL_DIR}/pgvoyager" ]; then
     print_progress "Removing PgVoyager binary"
     sudo rm -f "${INSTALL_DIR}/pgvoyager" 2>/dev/null || rm -f "${INSTALL_DIR}/pgvoyager"
     print_done
-    ((BINARIES_REMOVED++))
+    BINARIES_REMOVED=$((BINARIES_REMOVED + 1))
 else
     print_info "PgVoyager binary not found"
 fi
@@ -124,7 +124,7 @@ if [ -f "${INSTALL_DIR}/pgvoyager-launcher" ]; then
     print_progress "Removing launcher script"
     sudo rm -f "${INSTALL_DIR}/pgvoyager-launcher" 2>/dev/null || rm -f "${INSTALL_DIR}/pgvoyager-launcher"
     print_done
-    ((BINARIES_REMOVED++))
+    BINARIES_REMOVED=$((BINARIES_REMOVED + 1))
 else
     print_info "Launcher script not found"
 fi
@@ -133,7 +133,7 @@ if [ -f "${INSTALL_DIR}/pgvoyager-mcp" ]; then
     print_progress "Removing MCP server"
     sudo rm -f "${INSTALL_DIR}/pgvoyager-mcp" 2>/dev/null || rm -f "${INSTALL_DIR}/pgvoyager-mcp"
     print_done
-    ((BINARIES_REMOVED++))
+    BINARIES_REMOVED=$((BINARIES_REMOVED + 1))
 else
     print_info "MCP server not found"
 fi
@@ -159,7 +159,7 @@ ICONS_REMOVED=0
 for size in 256 128 64 48; do
     if [ -f "${ICON_DIR}/${size}x${size}/apps/pgvoyager.png" ]; then
         rm -f "${ICON_DIR}/${size}x${size}/apps/pgvoyager.png"
-        ((ICONS_REMOVED++))
+        ICONS_REMOVED=$((ICONS_REMOVED + 1))
     fi
 done
 

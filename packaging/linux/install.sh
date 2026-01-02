@@ -184,7 +184,7 @@ ICONS_INSTALLED=0
 for size in 256 128 64 48; do
     if [ -f "${SCRIPT_DIR}/pgvoyager-${size}.png" ]; then
         cp "${SCRIPT_DIR}/pgvoyager-${size}.png" "${ICON_DIR}/${size}x${size}/apps/pgvoyager.png"
-        ((ICONS_INSTALLED++))
+        ICONS_INSTALLED=$((ICONS_INSTALLED + 1))
     fi
 done
 print_success "Installed ${ICONS_INSTALLED} icon sizes"

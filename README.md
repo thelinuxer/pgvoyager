@@ -197,29 +197,29 @@ PgVoyager is built with **Go** for the backend and **Svelte** for the frontend:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                              Browser                                     │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                    Frontend (SvelteKit + Svelte 5)                │  │
-│  │  • Schema Browser    • SQL Editor (CodeMirror)                   │  │
-│  │  • ERD Viewer        • Terminal (xterm.js)                       │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
+│                              Browser                                    │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │                    Frontend (SvelteKit + Svelte 5)               │   │
+│  │  • Schema Browser    • SQL Editor (CodeMirror)                   │   │
+│  │  • ERD Viewer        • Terminal (xterm.js)                       │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                           HTTP / WebSocket
                                     │
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         Backend (Go + Gin)                              │
-│  • Connection Management    • Query Execution                          │
-│  • Schema Introspection     • Claude Session Manager (PTY)             │
-│  • Query History            • Static File Server                       │
+│  • Connection Management    • Query Execution                           │
+│  • Schema Introspection     • Claude Session Manager (PTY)              │
+│  • Query History            • Static File Server                        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                           MCP Protocol
                                     │
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                      MCP Server (Go binary)                             │
-│  • Database Tools           • Editor Integration                       │
-│  • Schema Discovery         • Query Execution                          │
+│  • Database Tools           • Editor Integration                        │
+│  • Schema Discovery         • Query Execution                           │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ```

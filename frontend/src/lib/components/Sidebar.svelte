@@ -278,6 +278,15 @@ LIMIT 100;`;
 		</span>
 		<div class="sidebar-actions">
 			{#if $activeConnection}
+				<button
+					class="btn btn-sm btn-ghost"
+					onclick={refreshSchema}
+					disabled={$isLoading}
+					title="Refresh Schema"
+					data-testid="btn-refresh-schema"
+				>
+					<Icon name="refresh" size={14} class={$isLoading ? 'spinning' : ''} />
+				</button>
 				<button class="btn btn-sm btn-ghost" onclick={handleShowSavedQueries} title="Saved Queries">
 					<Icon name="save" size={14} />
 				</button>

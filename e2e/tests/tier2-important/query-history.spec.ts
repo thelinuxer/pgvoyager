@@ -4,12 +4,8 @@ import { AppPage, QueryHistoryPanel } from '../../pages';
 /**
  * Query History Tests
  * Uses a SINGLE shared connection to avoid PostgreSQL connection exhaustion
- *
- * FIXME: All tests are skipped due to a suspected Svelte 5 + Playwright event handling issue
- * The sidebar button click is detected but the state update doesn't trigger panel rendering.
- * This needs investigation - the panel works correctly in manual testing.
  */
-test.describe.skip('Query History', () => {
+test.describe('Query History', () => {
   test.describe.configure({ mode: 'serial' });
 
   let app: AppPage;

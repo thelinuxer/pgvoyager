@@ -31,11 +31,14 @@
 		'.cm-cursor, .cm-dropCursor': {
 			borderLeftColor: 'var(--color-primary)'
 		},
-		'&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-			backgroundColor: 'rgba(137, 180, 250, 0.3)'
+		'&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+			backgroundColor: 'rgba(137, 180, 250, 0.5) !important'
+		},
+		'.cm-content ::selection': {
+			backgroundColor: 'rgba(137, 180, 250, 0.5) !important'
 		},
 		'.cm-activeLine': {
-			backgroundColor: 'var(--color-surface)'
+			backgroundColor: 'transparent'
 		},
 		'.cm-gutters': {
 			backgroundColor: 'var(--color-bg-secondary)',
@@ -112,10 +115,11 @@
 		provide: (f) => EditorView.decorations.from(f)
 	});
 
-	const errorHighlightTheme = EditorView.baseTheme({
+	const errorHighlightTheme = EditorView.theme({
 		'.cm-error-highlight': {
-			backgroundColor: 'rgba(255, 0, 0, 0.3)',
-			borderBottom: '2px wavy #f38ba8'
+			backgroundColor: '#f38ba8 !important',
+			color: '#1e1e2e !important',
+			borderRadius: '2px'
 		}
 	});
 
@@ -246,12 +250,30 @@
 
 		// Position is 1-based from PostgreSQL, convert to 0-based
 		const pos = position - 1;
-		const docLength = editorView.state.doc.length;
+		const doc = editorView.state.doc.toString();
+		const docLength = doc.length;
 
 		// Clamp position to valid range
-		const from = Math.max(0, Math.min(pos, docLength));
-		// Highlight the character at the error position (or to end if at last position)
-		const to = Math.min(from + 1, docLength);
+		const startPos = Math.max(0, Math.min(pos, docLength));
+
+		// Find word boundaries around the error position
+		let from = startPos;
+		let to = startPos;
+
+		// Expand backwards to find start of word
+		while (from > 0 && /\w/.test(doc[from - 1])) {
+			from--;
+		}
+
+		// Expand forwards to find end of word
+		while (to < docLength && /\w/.test(doc[to])) {
+			to++;
+		}
+
+		// If no word found, highlight at least a few characters
+		if (from === to) {
+			to = Math.min(startPos + 5, docLength);
+		}
 
 		editorView.dispatch({
 			effects: setErrorEffect.of({ from, to })
@@ -686,5 +708,17 @@
 	@keyframes spin {
 		from { transform: rotate(0deg); }
 		to { transform: rotate(360deg); }
+	}
+
+	/* Error highlight for SQL syntax errors */
+	.editor-container :global(.cm-error-highlight) {
+		background-color: #f38ba8 !important;
+		color: #1e1e2e !important;
+		border-radius: 2px;
+	}
+
+	/* Text selection highlight */
+	.editor-container :global(.cm-selectionBackground) {
+		background-color: rgba(137, 180, 250, 0.5) !important;
 	}
 </style>

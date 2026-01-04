@@ -158,6 +158,15 @@ test.describe('Query Editor', () => {
       await app.queryEditor.expectError();
     });
 
+    test('should highlight error position in editor', async () => {
+      await app.queryEditor.setQuery('SELEC * FROM users');
+      await app.queryEditor.executeQuery();
+
+      await app.queryEditor.expectError();
+      // Error highlight should be visible on the erroneous word
+      await expect(app.queryEditor.errorHighlight).toBeVisible({ timeout: 2000 });
+    });
+
     test('should display error for non-existent table', async () => {
       await app.queryEditor.setQuery('SELECT * FROM nonexistent_table');
       await app.queryEditor.executeQuery();
@@ -185,6 +194,22 @@ test.describe('Query Editor', () => {
       await app.queryEditor.executeQuery();
       await app.queryEditor.expectResults();
       await app.queryEditor.expectNoError();
+    });
+
+    test('should clear error highlight when executing valid query', async () => {
+      // First execute invalid query to get error highlight
+      await app.queryEditor.setQuery('SELEC * FROM users');
+      await app.queryEditor.executeQuery();
+      await app.queryEditor.expectError();
+      await expect(app.queryEditor.errorHighlight).toBeVisible({ timeout: 2000 });
+
+      // Execute valid query
+      await app.queryEditor.setQuery('SELECT 1 as test');
+      await app.queryEditor.executeQuery();
+      await app.queryEditor.expectResults();
+
+      // Error highlight should be cleared
+      await expect(app.queryEditor.errorHighlight).not.toBeVisible({ timeout: 2000 });
     });
   });
 

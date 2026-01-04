@@ -79,7 +79,7 @@
 				<a href={updateInfo.releaseUrl} target="_blank" rel="noopener noreferrer"
 				   class="version-badge update-available"
 				   title="Update available! Click to download {updateInfo.latestVersion}">
-					<Icon name="download" size={12} />
+					<span class="update-dot"></span>
 					{updateInfo.currentVersion}
 				</a>
 			{:else}
@@ -210,6 +210,14 @@
 
 	.version-badge.update-available:hover {
 		background: rgba(137, 180, 250, 0.2);
+	}
+
+	.update-dot {
+		width: 8px;
+		height: 8px;
+		background: var(--color-error);
+		border-radius: 50%;
+		flex-shrink: 0;
 	}
 
 	.connection-error {

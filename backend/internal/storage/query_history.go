@@ -11,7 +11,7 @@ type QueryHistoryEntry struct {
 	ConnectionID   string    `json:"connectionId"`
 	ConnectionName string    `json:"connectionName"`
 	SQL            string    `json:"sql"`
-	Duration       int64     `json:"duration"`
+	Duration       float64   `json:"duration"`
 	RowCount       int       `json:"rowCount"`
 	Success        bool      `json:"success"`
 	Error          string    `json:"error,omitempty"`

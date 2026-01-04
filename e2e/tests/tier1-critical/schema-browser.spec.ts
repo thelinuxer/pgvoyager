@@ -210,6 +210,40 @@ test.describe('Schema Browser', () => {
     });
   });
 
+  test.describe('Schema Refresh', () => {
+    test('should show refresh button when connected', async () => {
+      await expect(app.sidebar.refreshSchemaButton).toBeVisible();
+    });
+
+    test('should refresh schema tree when clicking refresh button', async () => {
+      // Expand schema to see tables before refresh
+      await app.sidebar.expandNode('test_schema');
+      await app.sidebar.expandNode('Tables');
+      await app.sidebar.expectTableVisible('users');
+
+      // Click refresh button
+      await app.sidebar.refreshSchema();
+
+      // Schema tree should still be visible with tables
+      await expect(app.sidebar.schemaTree).toBeVisible();
+      await app.sidebar.expectSchemaVisible('test_schema');
+    });
+
+    test('should disable refresh button while loading', async () => {
+      // Click refresh and immediately check button state
+      await app.sidebar.refreshSchemaButton.click();
+
+      // Button should be disabled during load
+      await expect(app.sidebar.refreshSchemaButton).toBeDisabled();
+
+      // Wait for load to complete
+      await app.sidebar.waitForSchemaLoad();
+
+      // Button should be enabled again
+      await expect(app.sidebar.refreshSchemaButton).toBeEnabled();
+    });
+  });
+
   test.describe('Object Types', () => {
     test('should show Views category', async () => {
       // Expand test_schema if needed

@@ -11,13 +11,13 @@ import (
 )
 
 type AddQueryHistoryRequest struct {
-	ConnectionID   string `json:"connectionId" binding:"required"`
-	ConnectionName string `json:"connectionName" binding:"required"`
-	SQL            string `json:"sql" binding:"required"`
-	Duration       int64  `json:"duration" binding:"required"`
-	RowCount       int    `json:"rowCount" binding:"required"`
-	Success        bool   `json:"success"`
-	Error          string `json:"error"`
+	ConnectionID   string  `json:"connectionId" binding:"required"`
+	ConnectionName string  `json:"connectionName" binding:"required"`
+	SQL            string  `json:"sql" binding:"required"`
+	Duration       float64 `json:"duration"`
+	RowCount       int     `json:"rowCount"`
+	Success        bool    `json:"success"`
+	Error          string  `json:"error"`
 }
 
 // GetQueryHistory retrieves query history

@@ -60,6 +60,10 @@ export class SidebarPage extends BasePage {
     return this.sidebar.locator('[title*="Analyze" i], [aria-label*="Analyze" i]');
   }
 
+  get refreshSchemaButton(): Locator {
+    return this.page.locator('[data-testid="btn-refresh-schema"]');
+  }
+
   // Context menu - be specific to avoid matching backdrop
   get contextMenu(): Locator {
     return this.page.locator('.context-menu:not(.context-menu-backdrop)');
@@ -206,6 +210,13 @@ export class SidebarPage extends BasePage {
 
   async openAnalysis(): Promise<void> {
     await this.analyzeButton.click();
+  }
+
+  async refreshSchema(): Promise<void> {
+    await this.refreshSchemaButton.click();
+    // Wait for loading to start and then finish
+    await this.page.waitForTimeout(100);
+    await this.waitForSchemaLoad();
   }
 
   // Navigate to specific objects

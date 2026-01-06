@@ -97,6 +97,7 @@ func RegisterRoutes(r *gin.Engine) {
 		{
 			claude.POST("/sessions", handlers.CreateClaudeSession)
 			claude.DELETE("/sessions/:id", handlers.DestroyClaudeSession)
+			claude.POST("/sessions/:id/destroy", handlers.DestroyClaudeSessionPost) // For sendBeacon on page close
 			claude.GET("/terminal/:id", handlers.ClaudeTerminalWebSocket)
 			claude.PUT("/sessions/:id/connection", handlers.UpdateClaudeSessionConnection)
 		}

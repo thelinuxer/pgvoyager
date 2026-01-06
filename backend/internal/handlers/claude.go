@@ -38,6 +38,16 @@ func DestroyClaudeSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+// DestroyClaudeSessionPost is a POST version for sendBeacon compatibility on page close
+func DestroyClaudeSessionPost(c *gin.Context) {
+	sessionID := c.Param("id")
+
+	// Ignore errors silently for cleanup - session may already be gone
+	claude.GetManager().DestroySession(sessionID)
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
 // ClaudeTerminalWebSocket handles the WebSocket connection for terminal I/O
 func ClaudeTerminalWebSocket(c *gin.Context) {
 	claude.HandleTerminalWebSocket(c)

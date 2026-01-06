@@ -10,10 +10,12 @@
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import ClaudeTerminalPanel from '$lib/components/ClaudeTerminalPanel.svelte';
 	import ResizeHandle from '$lib/components/ResizeHandle.svelte';
-	import { activeConnection } from '$lib/stores/connections';
+	import { activeConnection, activeConnectionId } from '$lib/stores/connections';
 	import { layout } from '$lib/stores/layout';
+	import { claudeTerminal } from '$lib/stores/claudeTerminal';
 	import type { Connection, SavedQuery } from '$lib/types';
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 
 	// Use individual $state variables
 	let showConnectionModal = $state(false);
@@ -102,9 +104,33 @@
 		}
 	}
 
+	// Cleanup function to disconnect DB and close Claude session on page unload
+	function handlePageClose() {
+		// Get current connection ID
+		const connId = get(activeConnectionId);
+		if (connId) {
+			// Use sendBeacon for reliable delivery on page close
+			navigator.sendBeacon(`/api/connections/${connId}/disconnect`);
+		}
+
+		// Get Claude session ID and close it
+		const claudeState = get(claudeTerminal);
+		if (claudeState.sessionId) {
+			// Use POST endpoint since sendBeacon only supports POST
+			navigator.sendBeacon(`/api/claude/sessions/${claudeState.sessionId}/destroy`);
+		}
+	}
+
 	onMount(() => {
 		window.addEventListener('keydown', handleKeydown);
-		return () => window.removeEventListener('keydown', handleKeydown);
+		window.addEventListener('pagehide', handlePageClose);
+		window.addEventListener('beforeunload', handlePageClose);
+
+		return () => {
+			window.removeEventListener('keydown', handleKeydown);
+			window.removeEventListener('pagehide', handlePageClose);
+			window.removeEventListener('beforeunload', handlePageClose);
+		};
 	});
 </script>
 

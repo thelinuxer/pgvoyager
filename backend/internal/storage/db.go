@@ -20,11 +20,15 @@ var (
 func GetDB() (*sql.DB, error) {
 	var err error
 	dbOnce.Do(func() {
-		configDir, e := os.UserConfigDir()
-		if e != nil {
-			configDir = os.TempDir()
+		// Allow overriding config directory via environment variable (useful for e2e tests)
+		pgvoyagerDir := os.Getenv("PGVOYAGER_CONFIG_DIR")
+		if pgvoyagerDir == "" {
+			configDir, e := os.UserConfigDir()
+			if e != nil {
+				configDir = os.TempDir()
+			}
+			pgvoyagerDir = filepath.Join(configDir, "pgvoyager")
 		}
-		pgvoyagerDir := filepath.Join(configDir, "pgvoyager")
 		os.MkdirAll(pgvoyagerDir, 0755)
 
 		dbPath := filepath.Join(pgvoyagerDir, "pgvoyager.db")

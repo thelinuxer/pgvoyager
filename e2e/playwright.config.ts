@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -7,6 +9,20 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 const isCI = process.env.CI === 'true' || process.env.CI === '1';
 const baseURL = process.env.BASE_URL || 'http://localhost:5137';
+
+// Use a separate config directory for e2e tests to avoid messing with user's real config
+const e2eConfigDir = process.env.PGVOYAGER_CONFIG_DIR || path.join(os.tmpdir(), 'pgvoyager-e2e-config');
+
+// Ensure the e2e config directory exists
+// In CI: clean it first to start fresh
+// Locally: just ensure it exists
+if (isCI && fs.existsSync(e2eConfigDir)) {
+  fs.rmSync(e2eConfigDir, { recursive: true, force: true });
+}
+fs.mkdirSync(e2eConfigDir, { recursive: true });
+
+// Export for use in global setup/teardown
+export { e2eConfigDir };
 
 export default defineConfig({
   testDir: './tests',
@@ -72,14 +88,18 @@ export default defineConfig({
   ],
 
   // Run local dev server before starting the tests
-  // For local development: start the app manually with `make dev` in a separate terminal
+  // For local development: start the app manually with `make dev-e2e` in a separate terminal
   // For CI: the production binary is built and run with embedded frontend
   webServer: isCI ? {
-    command: 'cd .. && PGVOYAGER_MODE=production ./pgvoyager',
+    command: 'cd .. && ./pgvoyager',
     url: baseURL,
     reuseExistingServer: false,
     timeout: 30000,
-  } : undefined,  // Local dev: start app manually with `make dev`
+    env: {
+      PGVOYAGER_MODE: 'production',
+      PGVOYAGER_CONFIG_DIR: e2eConfigDir,
+    },
+  } : undefined,  // Local dev: start app manually with `make dev-e2e`
 
   // Output directory for test artifacts
   outputDir: 'test-results/artifacts',

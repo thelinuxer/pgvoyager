@@ -1,4 +1,4 @@
-.PHONY: all backend frontend dev install clean build build-prod release \
+.PHONY: all backend frontend dev dev-e2e backend-e2e install clean build build-prod release \
 	e2e-install e2e-test e2e-test-headed e2e-test-ui e2e-smoke e2e-tier1 e2e-tier2 e2e-tier3 e2e-report
 
 # Version from git tag or default
@@ -10,6 +10,18 @@ dev:
 	@echo "Starting PgVoyager..."
 	@echo "App available at http://localhost:5137"
 	@make -j2 backend frontend
+
+# Run for e2e tests with isolated config directory (doesn't affect your real config)
+dev-e2e:
+	@echo "Starting PgVoyager for e2e tests (isolated config)..."
+	@echo "App available at http://localhost:5137"
+	@echo "Config directory: /tmp/pgvoyager-e2e-config"
+	@make -j2 backend-e2e frontend
+
+# Run backend for e2e tests with isolated config
+backend-e2e:
+	@echo "Starting Go backend on port 5138 (e2e mode)..."
+	cd backend && PGVOYAGER_PORT=5138 PGVOYAGER_CONFIG_DIR=/tmp/pgvoyager-e2e-config go run ./cmd/server
 
 # Run backend in development mode (on port 5138, proxied by frontend)
 backend:

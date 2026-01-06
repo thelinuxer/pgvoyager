@@ -2,10 +2,14 @@ import { FullConfig } from '@playwright/test';
 import { Client } from 'pg';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '.env') });
+
+// Get the e2e config directory (same logic as playwright.config.ts)
+const e2eConfigDir = process.env.PGVOYAGER_CONFIG_DIR || path.join(os.tmpdir(), 'pgvoyager-e2e-config');
 
 // Test schema SQL - creates tables, views, functions, etc.
 const TEST_SCHEMA_SQL = `
@@ -199,11 +203,8 @@ async function globalSetup(config: FullConfig) {
 }
 
 async function cleanPgVoyagerState() {
-  // Get the SQLite database path
-  const configDir = process.env.XDG_CONFIG_HOME ||
-    path.join(process.env.HOME || '', '.config');
-  const dbPath = process.env.PGVOYAGER_DB_PATH ||
-    path.join(configDir, 'pgvoyager', 'pgvoyager.db');
+  // Get the SQLite database path from the e2e config directory
+  const dbPath = path.join(e2eConfigDir, 'pgvoyager.db');
 
   if (fs.existsSync(dbPath)) {
     console.log(`🧹 Cleaning PgVoyager state: ${dbPath}`);

@@ -25,11 +25,15 @@ type SavedQueryManager struct {
 
 func GetQueryManager() *SavedQueryManager {
 	queryManagerOnce.Do(func() {
-		configDir, err := os.UserConfigDir()
-		if err != nil {
-			configDir = os.TempDir()
+		// Allow overriding config directory via environment variable (useful for e2e tests)
+		pgvoyagerDir := os.Getenv("PGVOYAGER_CONFIG_DIR")
+		if pgvoyagerDir == "" {
+			configDir, err := os.UserConfigDir()
+			if err != nil {
+				configDir = os.TempDir()
+			}
+			pgvoyagerDir = filepath.Join(configDir, "pgvoyager")
 		}
-		pgvoyagerDir := filepath.Join(configDir, "pgvoyager")
 		os.MkdirAll(pgvoyagerDir, 0755)
 
 		queryManager = &SavedQueryManager{

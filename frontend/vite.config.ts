@@ -11,7 +11,8 @@ export default defineConfig({
 		proxy: {
 			'/api': {
 				target: `http://localhost:${BACKEND_PORT}`,
-				changeOrigin: true
+				changeOrigin: true,
+				ws: true
 			},
 			'/ws': {
 				target: `http://localhost:${BACKEND_PORT}`,

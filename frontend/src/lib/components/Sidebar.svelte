@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { activeConnection, activeConnectionId } from '$lib/stores/connections';
-	import { schemaTree, expandedNodes, toggleNode, isLoading, error, refreshSchema } from '$lib/stores/schema';
+	import { schemaTree, expandedNodes, toggleNode, isLoading, error, refreshSchema, loadTableColumns } from '$lib/stores/schema';
 	import { tabs } from '$lib/stores/tabs';
 	import { dataApi } from '$lib/api/client';
-	import type { SchemaTreeNode, Table } from '$lib/types';
+	import type { SchemaTreeNode, Table, Column } from '$lib/types';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
@@ -32,6 +32,34 @@
 	let dropTableModal = $state<{ schema: string; table: string; cascade: boolean } | null>(null);
 	let isDropping = $state(false);
 	let dropError = $state<string | null>(null);
+
+	// Filter table modal state
+	let filterModal = $state<{
+		schema: string;
+		table: string;
+		columns: Column[];
+		selectedColumn: string;
+		operator: string;
+		value: string;
+		orderBy: string;
+		orderDir: 'ASC' | 'DESC';
+		limit: number;
+	} | null>(null);
+	let isLoadingColumns = $state(false);
+
+	const FILTER_OPERATORS = [
+		{ value: '=', label: '= (equals)' },
+		{ value: '!=', label: '!= (not equals)' },
+		{ value: '>', label: '> (greater than)' },
+		{ value: '>=', label: '>= (greater or equal)' },
+		{ value: '<', label: '< (less than)' },
+		{ value: '<=', label: '<= (less or equal)' },
+		{ value: 'LIKE', label: 'LIKE (pattern match)' },
+		{ value: 'ILIKE', label: 'ILIKE (case-insensitive)' },
+		{ value: 'IS NULL', label: 'IS NULL' },
+		{ value: 'IS NOT NULL', label: 'IS NOT NULL' },
+		{ value: 'IN', label: 'IN (list)' },
+	];
 
 	// Filter the tree based on search query
 	function filterTree(nodes: SchemaTreeNode[], query: string): SchemaTreeNode[] {
@@ -197,14 +225,73 @@
 		closeContextMenu();
 	}
 
-	function handleFilterTable(node: SchemaTreeNode) {
-		if (!node.schema) return;
-		const sql = `SELECT *
-FROM "${node.schema}"."${node.name}"
-WHERE column_name = 'value'
-LIMIT 100;`;
-		tabs.openQuery({ title: `Filter ${node.name}`, initialSql: sql });
+	async function handleFilterTable(node: SchemaTreeNode) {
+		if (!node.schema || !$activeConnectionId) return;
 		closeContextMenu();
+
+		isLoadingColumns = true;
+		try {
+			const columns = await loadTableColumns($activeConnectionId, node.schema, node.name);
+			filterModal = {
+				schema: node.schema,
+				table: node.name,
+				columns,
+				selectedColumn: columns.length > 0 ? columns[0].name : '',
+				operator: '=',
+				value: '',
+				orderBy: '',
+				orderDir: 'ASC',
+				limit: 100
+			};
+		} catch (e) {
+			console.error('Failed to load columns for filter:', e);
+		} finally {
+			isLoadingColumns = false;
+		}
+	}
+
+	function closeFilterModal() {
+		filterModal = null;
+	}
+
+	function applyFilter() {
+		if (!filterModal) return;
+
+		const { schema, table, selectedColumn, operator, value, orderBy, orderDir, limit } = filterModal;
+
+		// Build WHERE clause
+		let whereClause = '';
+		if (selectedColumn && operator) {
+			if (operator === 'IS NULL' || operator === 'IS NOT NULL') {
+				whereClause = `WHERE "${selectedColumn}" ${operator}`;
+			} else if (operator === 'IN') {
+				// Expect comma-separated values
+				const values = value.split(',').map(v => `'${v.trim()}'`).join(', ');
+				whereClause = `WHERE "${selectedColumn}" IN (${values})`;
+			} else if (operator === 'LIKE' || operator === 'ILIKE') {
+				whereClause = `WHERE "${selectedColumn}" ${operator} '${value}'`;
+			} else {
+				// For numeric comparisons, try to detect if value is numeric
+				const isNumeric = !isNaN(Number(value)) && value.trim() !== '';
+				const formattedValue = isNumeric ? value : `'${value}'`;
+				whereClause = `WHERE "${selectedColumn}" ${operator} ${formattedValue}`;
+			}
+		}
+
+		// Build ORDER BY clause
+		let orderClause = '';
+		if (orderBy) {
+			orderClause = `ORDER BY "${orderBy}" ${orderDir}`;
+		}
+
+		const sql = `SELECT *
+FROM "${schema}"."${table}"
+${whereClause}
+${orderClause}
+LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
+
+		tabs.openQuery({ title: `Filter ${table}`, initialSql: sql });
+		closeFilterModal();
 	}
 
 	function handleDropTableClick(node: SchemaTreeNode) {
@@ -454,6 +541,96 @@ LIMIT 100;`;
 				{:else}
 					Drop Table
 				{/if}
+			</button>
+		</div>
+	</div>
+{/if}
+
+<!-- Filter Table Modal -->
+{#if filterModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="modal-backdrop" onclick={closeFilterModal}></div>
+	<div class="modal filter-modal">
+		<div class="modal-header">
+			<Icon name="filter" size={20} />
+			<h3>Filter Table</h3>
+		</div>
+		<div class="modal-body">
+			<p class="filter-table-name">"{filterModal.schema}"."{filterModal.table}"</p>
+
+			<div class="filter-form">
+				<div class="filter-row">
+					<label>
+						<span>Column</span>
+						<select bind:value={filterModal.selectedColumn}>
+							{#each filterModal.columns as col}
+								<option value={col.name}>{col.name} ({col.dataType})</option>
+							{/each}
+						</select>
+					</label>
+				</div>
+
+				<div class="filter-row">
+					<label>
+						<span>Operator</span>
+						<select bind:value={filterModal.operator}>
+							{#each FILTER_OPERATORS as op}
+								<option value={op.value}>{op.label}</option>
+							{/each}
+						</select>
+					</label>
+				</div>
+
+				{#if filterModal.operator !== 'IS NULL' && filterModal.operator !== 'IS NOT NULL'}
+					<div class="filter-row">
+						<label>
+							<span>Value {filterModal.operator === 'IN' ? '(comma-separated)' : ''}</span>
+							<input
+								type="text"
+								bind:value={filterModal.value}
+								placeholder={filterModal.operator === 'LIKE' || filterModal.operator === 'ILIKE' ? '%pattern%' : 'Enter value...'}
+							/>
+						</label>
+					</div>
+				{/if}
+
+				<div class="filter-divider"></div>
+
+				<div class="filter-row filter-row-inline">
+					<label class="flex-1">
+						<span>Order By</span>
+						<select bind:value={filterModal.orderBy}>
+							<option value="">None</option>
+							{#each filterModal.columns as col}
+								<option value={col.name}>{col.name}</option>
+							{/each}
+						</select>
+					</label>
+					<label class="order-dir">
+						<span>Direction</span>
+						<select bind:value={filterModal.orderDir}>
+							<option value="ASC">ASC</option>
+							<option value="DESC">DESC</option>
+						</select>
+					</label>
+				</div>
+
+				<div class="filter-row">
+					<label>
+						<span>Limit</span>
+						<input type="number" bind:value={filterModal.limit} min="1" max="10000" />
+					</label>
+				</div>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<button class="btn btn-secondary btn-sm" onclick={closeFilterModal}>
+				Cancel
+			</button>
+			<button class="btn btn-primary btn-sm" onclick={applyFilter}>
+				<Icon name="play" size={14} />
+				Open in Query Editor
 			</button>
 		</div>
 	</div>
@@ -864,5 +1041,75 @@ LIMIT 100;`;
 		gap: 8px;
 		padding: 16px 20px;
 		border-top: 1px solid var(--color-border);
+	}
+
+	/* Filter Modal */
+	.filter-modal {
+		width: 420px;
+	}
+
+	.filter-table-name {
+		font-family: var(--font-mono);
+		font-size: 14px;
+		font-weight: 600;
+		color: var(--color-primary);
+		margin-bottom: 16px !important;
+	}
+
+	.filter-form {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.filter-row label {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.filter-row label span {
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--color-text-muted);
+	}
+
+	.filter-row select,
+	.filter-row input {
+		padding: 8px 10px;
+		font-size: 13px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-bg-secondary);
+		color: var(--color-text);
+	}
+
+	.filter-row select:focus,
+	.filter-row input:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.filter-row input::placeholder {
+		color: var(--color-text-dim);
+	}
+
+	.filter-row-inline {
+		display: flex;
+		gap: 12px;
+	}
+
+	.filter-row-inline .flex-1 {
+		flex: 1;
+	}
+
+	.filter-row-inline .order-dir {
+		width: 100px;
+	}
+
+	.filter-divider {
+		height: 1px;
+		background: var(--color-border);
+		margin: 4px 0;
 	}
 </style>

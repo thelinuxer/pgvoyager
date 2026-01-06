@@ -34,15 +34,24 @@
 	let dropError = $state<string | null>(null);
 
 	// Filter table modal state
+	interface FilterCondition {
+		column: string;
+		operator: string;
+		value: string;
+	}
+
+	interface OrderByCondition {
+		column: string;
+		direction: 'ASC' | 'DESC';
+	}
+
 	let filterModal = $state<{
 		schema: string;
 		table: string;
 		columns: Column[];
-		selectedColumn: string;
-		operator: string;
-		value: string;
-		orderBy: string;
-		orderDir: 'ASC' | 'DESC';
+		filters: FilterCondition[];
+		filterLogic: 'AND' | 'OR';
+		orderBy: OrderByCondition[];
 		limit: number;
 	} | null>(null);
 	let isLoadingColumns = $state(false);
@@ -236,11 +245,9 @@
 				schema: node.schema,
 				table: node.name,
 				columns,
-				selectedColumn: columns.length > 0 ? columns[0].name : '',
-				operator: '=',
-				value: '',
-				orderBy: '',
-				orderDir: 'ASC',
+				filters: [{ column: columns.length > 0 ? columns[0].name : '', operator: '=', value: '' }],
+				filterLogic: 'AND',
+				orderBy: [],
 				limit: 100
 			};
 		} catch (e) {
@@ -254,34 +261,66 @@
 		filterModal = null;
 	}
 
+	function addFilter() {
+		if (!filterModal) return;
+		const defaultColumn = filterModal.columns.length > 0 ? filterModal.columns[0].name : '';
+		filterModal.filters = [...filterModal.filters, { column: defaultColumn, operator: '=', value: '' }];
+	}
+
+	function removeFilter(index: number) {
+		if (!filterModal || filterModal.filters.length <= 1) return;
+		filterModal.filters = filterModal.filters.filter((_, i) => i !== index);
+	}
+
+	function addOrderBy() {
+		if (!filterModal) return;
+		const defaultColumn = filterModal.columns.length > 0 ? filterModal.columns[0].name : '';
+		filterModal.orderBy = [...filterModal.orderBy, { column: defaultColumn, direction: 'ASC' }];
+	}
+
+	function removeOrderBy(index: number) {
+		if (!filterModal) return;
+		filterModal.orderBy = filterModal.orderBy.filter((_, i) => i !== index);
+	}
+
+	function buildFilterCondition(filter: FilterCondition): string {
+		const { column, operator, value } = filter;
+		if (!column || !operator) return '';
+
+		if (operator === 'IS NULL' || operator === 'IS NOT NULL') {
+			return `"${column}" ${operator}`;
+		} else if (operator === 'IN') {
+			const values = value.split(',').map(v => `'${v.trim()}'`).join(', ');
+			return `"${column}" IN (${values})`;
+		} else if (operator === 'LIKE' || operator === 'ILIKE') {
+			return `"${column}" ${operator} '${value}'`;
+		} else {
+			const isNumeric = !isNaN(Number(value)) && value.trim() !== '';
+			const formattedValue = isNumeric ? value : `'${value}'`;
+			return `"${column}" ${operator} ${formattedValue}`;
+		}
+	}
+
 	function applyFilter() {
 		if (!filterModal) return;
 
-		const { schema, table, selectedColumn, operator, value, orderBy, orderDir, limit } = filterModal;
+		const { schema, table, filters, filterLogic, orderBy, limit } = filterModal;
 
-		// Build WHERE clause
+		// Build WHERE clause from multiple filters
+		const validFilters = filters
+			.map(f => buildFilterCondition(f))
+			.filter(c => c !== '');
+
 		let whereClause = '';
-		if (selectedColumn && operator) {
-			if (operator === 'IS NULL' || operator === 'IS NOT NULL') {
-				whereClause = `WHERE "${selectedColumn}" ${operator}`;
-			} else if (operator === 'IN') {
-				// Expect comma-separated values
-				const values = value.split(',').map(v => `'${v.trim()}'`).join(', ');
-				whereClause = `WHERE "${selectedColumn}" IN (${values})`;
-			} else if (operator === 'LIKE' || operator === 'ILIKE') {
-				whereClause = `WHERE "${selectedColumn}" ${operator} '${value}'`;
-			} else {
-				// For numeric comparisons, try to detect if value is numeric
-				const isNumeric = !isNaN(Number(value)) && value.trim() !== '';
-				const formattedValue = isNumeric ? value : `'${value}'`;
-				whereClause = `WHERE "${selectedColumn}" ${operator} ${formattedValue}`;
-			}
+		if (validFilters.length > 0) {
+			whereClause = `WHERE ${validFilters.join(`\n  ${filterLogic} `)}`;
 		}
 
-		// Build ORDER BY clause
+		// Build ORDER BY clause from multiple columns
 		let orderClause = '';
-		if (orderBy) {
-			orderClause = `ORDER BY "${orderBy}" ${orderDir}`;
+		if (orderBy.length > 0) {
+			const orderParts = orderBy.map(o => `"${o.column}" ${o.direction}`);
+			orderClause = `ORDER BY ${orderParts.join(', ')}`;
 		}
 
 		const sql = `SELECT *
@@ -560,61 +599,93 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 			<p class="filter-table-name">"{filterModal.schema}"."{filterModal.table}"</p>
 
 			<div class="filter-form">
-				<div class="filter-row">
-					<label>
-						<span>Column</span>
-						<select bind:value={filterModal.selectedColumn}>
-							{#each filterModal.columns as col}
-								<option value={col.name}>{col.name} ({col.dataType})</option>
-							{/each}
-						</select>
-					</label>
-				</div>
-
-				<div class="filter-row">
-					<label>
-						<span>Operator</span>
-						<select bind:value={filterModal.operator}>
-							{#each FILTER_OPERATORS as op}
-								<option value={op.value}>{op.label}</option>
-							{/each}
-						</select>
-					</label>
-				</div>
-
-				{#if filterModal.operator !== 'IS NULL' && filterModal.operator !== 'IS NOT NULL'}
-					<div class="filter-row">
-						<label>
-							<span>Value {filterModal.operator === 'IN' ? '(comma-separated)' : ''}</span>
-							<input
-								type="text"
-								bind:value={filterModal.value}
-								placeholder={filterModal.operator === 'LIKE' || filterModal.operator === 'ILIKE' ? '%pattern%' : 'Enter value...'}
-							/>
-						</label>
+				<!-- Filter conditions section -->
+				<div class="filter-section">
+					<div class="filter-section-header">
+						<span class="filter-section-title">WHERE conditions</span>
+						{#if filterModal.filters.length > 1}
+							<select class="logic-select" bind:value={filterModal.filterLogic}>
+								<option value="AND">AND</option>
+								<option value="OR">OR</option>
+							</select>
+						{/if}
 					</div>
-				{/if}
+
+					{#each filterModal.filters as filter, index}
+						<div class="filter-condition">
+							<select bind:value={filter.column} class="filter-col-select">
+								{#each filterModal.columns as col}
+									<option value={col.name}>{col.name}</option>
+								{/each}
+							</select>
+							<select bind:value={filter.operator} class="filter-op-select">
+								{#each FILTER_OPERATORS as op}
+									<option value={op.value}>{op.value}</option>
+								{/each}
+							</select>
+							{#if filter.operator !== 'IS NULL' && filter.operator !== 'IS NOT NULL'}
+								<input
+									type="text"
+									bind:value={filter.value}
+									class="filter-value-input"
+									placeholder={filter.operator === 'LIKE' || filter.operator === 'ILIKE' ? '%pattern%' : filter.operator === 'IN' ? 'val1, val2, ...' : 'value'}
+								/>
+							{:else}
+								<span class="filter-value-placeholder"></span>
+							{/if}
+							<button
+								class="btn-icon"
+								onclick={() => removeFilter(index)}
+								disabled={filterModal.filters.length <= 1}
+								title="Remove condition"
+							>
+								<Icon name="x" size={14} />
+							</button>
+						</div>
+					{/each}
+
+					<button class="btn btn-ghost btn-sm add-btn" onclick={addFilter}>
+						<Icon name="plus" size={14} />
+						Add condition
+					</button>
+				</div>
 
 				<div class="filter-divider"></div>
 
-				<div class="filter-row filter-row-inline">
-					<label class="flex-1">
-						<span>Order By</span>
-						<select bind:value={filterModal.orderBy}>
-							<option value="">None</option>
-							{#each filterModal.columns as col}
-								<option value={col.name}>{col.name}</option>
-							{/each}
-						</select>
-					</label>
-					<label class="order-dir">
-						<span>Direction</span>
-						<select bind:value={filterModal.orderDir}>
-							<option value="ASC">ASC</option>
-							<option value="DESC">DESC</option>
-						</select>
-					</label>
+				<!-- Order by section -->
+				<div class="filter-section">
+					<div class="filter-section-header">
+						<span class="filter-section-title">ORDER BY</span>
+					</div>
+
+					{#each filterModal.orderBy as order, index}
+						<div class="filter-condition">
+							<select bind:value={order.column} class="filter-col-select flex-1">
+								{#each filterModal.columns as col}
+									<option value={col.name}>{col.name}</option>
+								{/each}
+							</select>
+							<select bind:value={order.direction} class="filter-dir-select">
+								<option value="ASC">ASC</option>
+								<option value="DESC">DESC</option>
+							</select>
+							<button class="btn-icon" onclick={() => removeOrderBy(index)} title="Remove">
+								<Icon name="x" size={14} />
+							</button>
+						</div>
+					{/each}
+
+					{#if filterModal.orderBy.length === 0}
+						<p class="filter-empty-text">No ordering (default)</p>
+					{/if}
+
+					<button class="btn btn-ghost btn-sm add-btn" onclick={addOrderBy}>
+						<Icon name="plus" size={14} />
+						Add order column
+					</button>
 				</div>
+
+				<div class="filter-divider"></div>
 
 				<div class="filter-row">
 					<label>
@@ -1045,7 +1116,13 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 
 	/* Filter Modal */
 	.filter-modal {
-		width: 420px;
+		width: 520px;
+		max-height: 80vh;
+	}
+
+	.filter-modal .modal-body {
+		overflow-y: auto;
+		max-height: 60vh;
 	}
 
 	.filter-table-name {
@@ -1060,6 +1137,118 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
+	}
+
+	.filter-section {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.filter-section-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
+	.filter-section-title {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.logic-select {
+		padding: 2px 8px;
+		font-size: 11px;
+		font-weight: 600;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-surface);
+		color: var(--color-primary);
+	}
+
+	.filter-condition {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.filter-col-select {
+		flex: 1;
+		min-width: 120px;
+	}
+
+	.filter-op-select {
+		width: 90px;
+	}
+
+	.filter-value-input {
+		flex: 1;
+		min-width: 100px;
+	}
+
+	.filter-value-placeholder {
+		flex: 1;
+		min-width: 100px;
+	}
+
+	.filter-dir-select {
+		width: 70px;
+	}
+
+	.filter-condition select,
+	.filter-condition input {
+		padding: 6px 8px;
+		font-size: 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-bg-secondary);
+		color: var(--color-text);
+	}
+
+	.filter-condition select:focus,
+	.filter-condition input:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.filter-condition input::placeholder {
+		color: var(--color-text-dim);
+	}
+
+	.btn-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 4px;
+		border-radius: var(--radius-sm);
+		color: var(--color-text-muted);
+		transition: all var(--transition-fast);
+	}
+
+	.btn-icon:hover:not(:disabled) {
+		background: var(--color-surface);
+		color: var(--color-error);
+	}
+
+	.btn-icon:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.add-btn {
+		align-self: flex-start;
+		margin-top: 4px;
+	}
+
+	.filter-empty-text {
+		font-size: 12px;
+		color: var(--color-text-dim);
+		font-style: italic;
+		margin: 0;
 	}
 
 	.filter-row label {
@@ -1094,22 +1283,13 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 		color: var(--color-text-dim);
 	}
 
-	.filter-row-inline {
-		display: flex;
-		gap: 12px;
-	}
-
-	.filter-row-inline .flex-1 {
-		flex: 1;
-	}
-
-	.filter-row-inline .order-dir {
-		width: 100px;
-	}
-
 	.filter-divider {
 		height: 1px;
 		background: var(--color-border);
-		margin: 4px 0;
+		margin: 8px 0;
+	}
+
+	.flex-1 {
+		flex: 1;
 	}
 </style>

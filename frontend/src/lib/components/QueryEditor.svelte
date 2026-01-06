@@ -143,6 +143,19 @@
 	let executionTime = $state<number | null>(null);
 	let containerEl: HTMLDivElement;
 
+	// Pagination state for results
+	let page = $state(1);
+	let pageSize = $state(100);
+
+	// Derived pagination values
+	let totalPages = $derived(result ? Math.max(1, Math.ceil(result.rowCount / pageSize)) : 1);
+	let paginatedRows = $derived.by(() => {
+		if (!result) return [];
+		const start = (page - 1) * pageSize;
+		const end = start + pageSize;
+		return result.rows.slice(start, end);
+	});
+
 	// Detect tab switches and load the appropriate content
 	// Use untrack for reading currentTabId to prevent infinite loop
 	// (we're updating currentTabId inside the effect, so reading it would re-trigger)
@@ -321,6 +334,7 @@
 
 		isExecuting = true;
 		result = null;
+		page = 1; // Reset pagination on new query
 		clearErrorHighlight();
 
 		const startTime = performance.now();
@@ -525,7 +539,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each result.rows as row}
+							{#each paginatedRows as row}
 								<tr>
 									{#each result.columns as col}
 										<td class:null-value={row[col.name] === null}>
@@ -540,6 +554,60 @@
 					<div class="results-empty">Query executed successfully (no results)</div>
 				{/if}
 			</div>
+			{#if result.rowCount > pageSize}
+				<div class="pagination" data-testid="pagination">
+					<div class="pagination-info">
+						Showing {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, result.rowCount)} of {result.rowCount.toLocaleString()}
+					</div>
+					<div class="pagination-controls">
+						<button
+							class="btn btn-sm btn-ghost"
+							disabled={page === 1}
+							onclick={() => page = 1}
+							title="First page"
+						>
+							<Icon name="chevrons-left" size={14} />
+						</button>
+						<button
+							class="btn btn-sm btn-ghost"
+							disabled={page === 1}
+							onclick={() => page--}
+							title="Previous page"
+						>
+							<Icon name="chevron-left" size={14} />
+						</button>
+						<span class="page-info">Page {page} of {totalPages}</span>
+						<button
+							class="btn btn-sm btn-ghost"
+							disabled={page === totalPages}
+							onclick={() => page++}
+							title="Next page"
+						>
+							<Icon name="chevron-right" size={14} />
+						</button>
+						<button
+							class="btn btn-sm btn-ghost"
+							disabled={page === totalPages}
+							onclick={() => page = totalPages}
+							title="Last page"
+						>
+							<Icon name="chevrons-right" size={14} />
+						</button>
+					</div>
+					<div class="page-size">
+						<select
+							bind:value={pageSize}
+							onchange={() => page = 1}
+						>
+							<option value={50}>50 rows</option>
+							<option value={100}>100 rows</option>
+							<option value={250}>250 rows</option>
+							<option value={500}>500 rows</option>
+							<option value={1000}>1000 rows</option>
+						</select>
+					</div>
+				</div>
+			{/if}
 		{:else}
 			<div class="results-empty">
 				<p>Run a query to see results</p>
@@ -720,5 +788,40 @@
 	/* Text selection highlight */
 	.editor-container :global(.cm-selectionBackground) {
 		background-color: rgba(137, 180, 250, 0.5) !important;
+	}
+
+	/* Pagination styles (matches TableViewer) */
+	.pagination {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 8px 16px;
+		background: var(--color-bg-secondary);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.pagination-info {
+		font-size: 12px;
+		color: var(--color-text-muted);
+	}
+
+	.pagination-controls {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.pagination-controls .btn {
+		padding: 4px 6px;
+	}
+
+	.page-info {
+		padding: 0 12px;
+		font-size: 13px;
+	}
+
+	.page-size select {
+		padding: 4px 8px;
+		font-size: 12px;
 	}
 </style>

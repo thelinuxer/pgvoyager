@@ -48,30 +48,50 @@
 	let canGoForward = $derived(tabs.canNavigateForward(tab.id));
 	let currentLocation = $derived(tabs.getCurrentLocation(tab.id));
 
-	// Reload data when tab's schema/table changes
+	// Track previous navigation state to detect actual changes
+	let prevSchema = $state<string | undefined>(undefined);
+	let prevTable = $state<string | undefined>(undefined);
+	let prevFilterKey = $state<string>('');
+
+	// Reload data when tab's schema/table/filter changes (actual navigation)
 	$effect(() => {
-		if (tab.schema && tab.table) {
-			// Reset pagination when navigating
-			page = 1;
-			// Reset edit mode state
-			editMode = false;
-			editingCell = null;
-			selectedRows = new Set();
-			crudError = null;
-			// Use sort from location if available
-			const location = tabs.getCurrentLocation(tab.id);
-			if (location?.sort) {
-				orderBy = location.sort.column;
-				orderDir = location.sort.direction;
-			} else {
-				orderBy = null;
-				orderDir = 'ASC';
+		const schema = tab.schema;
+		const table = tab.table;
+		// Read currentLocation to track filter changes
+		const location = currentLocation;
+		const filterKey = location?.filter ? `${location.filter.column}=${location.filter.value}` : '';
+
+		if (schema && table) {
+			// Only reset pagination when actually navigating to a different table or filter
+			const isNewNavigation = schema !== prevSchema || table !== prevTable || filterKey !== prevFilterKey;
+
+			if (isNewNavigation) {
+				prevSchema = schema;
+				prevTable = table;
+				prevFilterKey = filterKey;
+
+				// Reset pagination when navigating
+				page = 1;
+				// Reset edit mode state
+				editMode = false;
+				editingCell = null;
+				selectedRows = new Set();
+				crudError = null;
+
+				// Use sort/limit from location if available
+				if (location?.sort) {
+					orderBy = location.sort.column;
+					orderDir = location.sort.direction;
+				} else {
+					orderBy = null;
+					orderDir = 'ASC';
+				}
+				if (location?.limit) {
+					pageSize = location.limit;
+				}
+
+				loadData();
 			}
-			// Use limit from location if specified
-			if (location?.limit) {
-				pageSize = location.limit;
-			}
-			loadData();
 		}
 	});
 
@@ -612,9 +632,8 @@
 			</div>
 			<div class="page-size">
 				<select
-					value={pageSize}
-					onchange={(e) => {
-						pageSize = parseInt(e.currentTarget.value);
+					bind:value={pageSize}
+					onchange={() => {
 						page = 1;
 						loadData();
 					}}

@@ -188,9 +188,11 @@
 		closeContextMenu();
 	}
 
-	function handleCopyName(node: SchemaTreeNode) {
+	function handleCopyName(node: SchemaTreeNode, quoted: boolean = false) {
 		if (!node.schema) return;
-		const fullName = `"${node.schema}"."${node.name}"`;
+		const fullName = quoted
+			? `"${node.schema}"."${node.name}"`
+			: `${node.schema}.${node.name}`;
 		navigator.clipboard.writeText(fullName);
 		closeContextMenu();
 	}
@@ -388,9 +390,13 @@ LIMIT 100;`;
 				<Icon name="file" size={14} />
 				Open in Query Editor
 			</button>
-			<button class="context-menu-item" onclick={() => handleCopyName(menuNode)}>
+			<button class="context-menu-item" onclick={() => handleCopyName(menuNode, false)}>
 				<Icon name="copy" size={14} />
-				Copy table name
+				Copy name (schema.table)
+			</button>
+			<button class="context-menu-item" onclick={() => handleCopyName(menuNode, true)}>
+				<Icon name="copy" size={14} />
+				Copy name ("schema"."table")
 			</button>
 			<div class="context-menu-separator"></div>
 			<button class="context-menu-item context-menu-item-danger" onclick={() => handleDropTableClick(menuNode)}>
@@ -401,6 +407,11 @@ LIMIT 100;`;
 			<button class="context-menu-item" onclick={() => handleViewSchemaERD(menuNode)}>
 				<Icon name="share-2" size={14} />
 				View Schema ERD
+			</button>
+			<div class="context-menu-separator"></div>
+			<button class="context-menu-item" onclick={() => { navigator.clipboard.writeText(menuNode.name); closeContextMenu(); }}>
+				<Icon name="copy" size={14} />
+				Copy schema name
 			</button>
 		{/if}
 	</div>

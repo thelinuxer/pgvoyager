@@ -119,8 +119,7 @@ type SchemaInfo struct {
 
 // TableInfo holds basic table information
 type TableInfo struct {
-	Name    string
-	Columns []string
+	Name string
 }
 
 // fetchDatabaseContext retrieves schema and table information for the system prompt
@@ -146,21 +145,16 @@ func fetchDatabaseContext(connectionID string) (*DatabaseContext, error) {
 		Port: conn.Port,
 	}
 
-	// Fetch schemas and tables
+	// Fetch schemas and tables (without columns to avoid argument length limits)
 	query := `
-		SELECT
+		SELECT DISTINCT
 			n.nspname as schema_name,
-			c.relname as table_name,
-			array_agg(a.attname ORDER BY a.attnum) as columns
+			c.relname as table_name
 		FROM pg_catalog.pg_namespace n
 		JOIN pg_catalog.pg_class c ON c.relnamespace = n.oid
-		JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
 		WHERE c.relkind = 'r'
 		  AND n.nspname NOT LIKE 'pg_%'
 		  AND n.nspname != 'information_schema'
-		  AND a.attnum > 0
-		  AND NOT a.attisdropped
-		GROUP BY n.nspname, c.relname
 		ORDER BY n.nspname, c.relname
 	`
 
@@ -174,8 +168,7 @@ func fetchDatabaseContext(connectionID string) (*DatabaseContext, error) {
 	schemaMap := make(map[string]*SchemaInfo)
 	for rows.Next() {
 		var schemaName, tableName string
-		var columns []string
-		if err := rows.Scan(&schemaName, &tableName, &columns); err != nil {
+		if err := rows.Scan(&schemaName, &tableName); err != nil {
 			continue
 		}
 
@@ -183,8 +176,7 @@ func fetchDatabaseContext(connectionID string) (*DatabaseContext, error) {
 			schemaMap[schemaName] = &SchemaInfo{Name: schemaName}
 		}
 		schemaMap[schemaName].Tables = append(schemaMap[schemaName].Tables, TableInfo{
-			Name:    tableName,
-			Columns: columns,
+			Name: tableName,
 		})
 	}
 
@@ -205,16 +197,22 @@ func buildSystemPrompt(dbContext *DatabaseContext) string {
 	sb.WriteString("Note: The user may switch database connections during our conversation. Use get_connection_info to check the current connection.\n\n")
 
 	if len(dbContext.Schemas) > 0 {
-		sb.WriteString("INITIAL DATABASE SCHEMA:\n")
-		sb.WriteString("========================\n\n")
-
+		// Count total tables
+		totalTables := 0
 		for _, schema := range dbContext.Schemas {
-			sb.WriteString(fmt.Sprintf("Schema: %s\n", schema.Name))
-			for _, table := range schema.Tables {
-				sb.WriteString(fmt.Sprintf("  - %s (%s)\n", table.Name, strings.Join(table.Columns, ", ")))
-			}
-			sb.WriteString("\n")
+			totalTables += len(schema.Tables)
 		}
+
+		sb.WriteString("DATABASE OVERVIEW:\n")
+		sb.WriteString("==================\n")
+		sb.WriteString(fmt.Sprintf("Schemas: %d, Tables: %d\n\n", len(dbContext.Schemas), totalTables))
+
+		// Only list schema names with table counts (not individual tables)
+		sb.WriteString("Schemas:\n")
+		for _, schema := range dbContext.Schemas {
+			sb.WriteString(fmt.Sprintf("  - %s (%d tables)\n", schema.Name, len(schema.Tables)))
+		}
+		sb.WriteString("\nUse list_tables and get_columns tools to explore table details.\n\n")
 	}
 
 	sb.WriteString("\nYou have access to PgVoyager MCP tools:\n")

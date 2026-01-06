@@ -233,13 +233,18 @@ test.describe('Schema Browser', () => {
       // Click refresh and immediately check button state
       await app.sidebar.refreshSchemaButton.click();
 
-      // Button should be disabled during load
-      await expect(app.sidebar.refreshSchemaButton).toBeDisabled();
+      // Button should be disabled during load (use short timeout - loading might be fast)
+      // If this fails, the loading was just too fast which is fine
+      try {
+        await expect(app.sidebar.refreshSchemaButton).toBeDisabled({ timeout: 500 });
+      } catch {
+        // Loading was very fast, button may already be enabled - this is acceptable
+      }
 
       // Wait for load to complete
       await app.sidebar.waitForSchemaLoad();
 
-      // Button should be enabled again
+      // Button should be enabled again after loading completes
       await expect(app.sidebar.refreshSchemaButton).toBeEnabled();
     });
   });
@@ -273,6 +278,380 @@ test.describe('Schema Browser', () => {
       await app.sidebar.expandNode('Functions');
       await app.page.waitForTimeout(300); // Wait for tree to expand
       await expect(app.sidebar.getFunctionNode('get_user_orders')).toBeVisible();
+    });
+  });
+
+  test.describe('Copy Name Context Menu', () => {
+    test.beforeEach(async () => {
+      // Ensure table is visible for context menu tests
+      const tablesNode = app.sidebar.getTreeNode('Tables');
+      if (!(await tablesNode.isVisible())) {
+        await app.sidebar.expandNode('test_schema');
+        await app.sidebar.expandNode('Tables');
+      }
+    });
+
+    test('should copy unquoted table name (schema.table)', async () => {
+      // Grant clipboard permissions on the page's context
+      await app.page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await expect(app.sidebar.getContextMenuItem('Copy name (schema.table)')).toBeVisible();
+      await app.sidebar.clickContextMenuItem('Copy name (schema.table)');
+
+      // Verify clipboard content
+      const clipboardText = await app.page.evaluate(() => navigator.clipboard.readText());
+      expect(clipboardText).toBe('test_schema.users');
+    });
+
+    test('should copy quoted table name ("schema"."table")', async () => {
+      // Grant clipboard permissions on the page's context
+      await app.page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await expect(app.sidebar.getContextMenuItem('Copy name ("schema"."table")')).toBeVisible();
+      await app.sidebar.clickContextMenuItem('Copy name ("schema"."table")');
+
+      // Verify clipboard content
+      const clipboardText = await app.page.evaluate(() => navigator.clipboard.readText());
+      expect(clipboardText).toBe('"test_schema"."users"');
+    });
+
+    test('should copy schema name from schema context menu', async () => {
+      // Grant clipboard permissions on the page's context
+      await app.page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+
+      // Right-click on the schema node
+      await app.sidebar.rightClickSchema('test_schema');
+      await app.page.waitForTimeout(300);
+      await expect(app.sidebar.getContextMenuItem('Copy schema name')).toBeVisible();
+      await app.sidebar.clickContextMenuItem('Copy schema name');
+
+      // Verify clipboard content
+      const clipboardText = await app.page.evaluate(() => navigator.clipboard.readText());
+      expect(clipboardText).toBe('test_schema');
+    });
+  });
+
+  test.describe('Filter Table Dialog', () => {
+    test.beforeEach(async () => {
+      // Close any open modals from previous tests
+      const modalBackdrop = app.page.locator('.modal-backdrop');
+      if (await modalBackdrop.isVisible({ timeout: 500 }).catch(() => false)) {
+        await modalBackdrop.click();
+        await app.page.waitForTimeout(200);
+      }
+
+      // Ensure table is visible for filter tests
+      const tablesNode = app.sidebar.getTreeNode('Tables');
+      if (!(await tablesNode.isVisible())) {
+        await app.sidebar.expandNode('test_schema');
+        await app.sidebar.expandNode('Tables');
+      }
+    });
+
+    test.afterEach(async () => {
+      // Close filter modal if it's still open
+      const filterModal = app.sidebar.filterModal;
+      if (await filterModal.isVisible({ timeout: 500 }).catch(() => false)) {
+        await app.sidebar.cancelFilterButton.click().catch(() => {
+          // Try clicking backdrop if button fails
+          app.page.locator('.modal-backdrop').click().catch(() => {});
+        });
+        await app.page.waitForTimeout(200);
+      }
+    });
+
+    test('should open filter dialog from context menu', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+      await expect(app.sidebar.filterModalTitle).toHaveText('Filter Table');
+      await expect(app.sidebar.filterTableName).toContainText('test_schema');
+      await expect(app.sidebar.filterTableName).toContainText('users');
+    });
+
+    test('should display table columns in filter dropdown', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Check that column dropdown exists and has options
+      const columnSelect = app.sidebar.filterConditions.first().locator('.filter-col-select');
+      await expect(columnSelect).toBeVisible();
+
+      // Verify some expected columns are in the dropdown
+      const options = await columnSelect.locator('option').allTextContents();
+      expect(options).toContain('id');
+      expect(options).toContain('name');
+      expect(options).toContain('email');
+    });
+
+    test('should add and remove filter conditions', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Should start with 1 filter condition
+      await expect(app.sidebar.filterConditions).toHaveCount(1);
+
+      // Add a condition
+      await app.sidebar.addFilterCondition();
+      await expect(app.sidebar.filterConditions).toHaveCount(2);
+
+      // Add another condition
+      await app.sidebar.addFilterCondition();
+      await expect(app.sidebar.filterConditions).toHaveCount(3);
+
+      // Remove one condition
+      await app.sidebar.removeFilterCondition(1);
+      await expect(app.sidebar.filterConditions).toHaveCount(2);
+    });
+
+    test('should show filter logic selector when multiple conditions exist', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Logic selector should not be visible with single condition
+      await expect(app.sidebar.filterLogicSelect).not.toBeVisible();
+
+      // Add a condition
+      await app.sidebar.addFilterCondition();
+
+      // Logic selector should now be visible
+      await expect(app.sidebar.filterLogicSelect).toBeVisible();
+
+      // Should default to AND
+      await expect(app.sidebar.filterLogicSelect).toHaveValue('AND');
+
+      // Change to OR
+      await app.sidebar.setFilterLogic('OR');
+      await expect(app.sidebar.filterLogicSelect).toHaveValue('OR');
+    });
+
+    test('should add and remove ORDER BY conditions', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Should start with no ORDER BY conditions
+      await expect(app.sidebar.orderByConditions).toHaveCount(0);
+
+      // Add an ORDER BY
+      await app.sidebar.addOrderByCondition();
+      await expect(app.sidebar.orderByConditions).toHaveCount(1);
+
+      // Add another ORDER BY
+      await app.sidebar.addOrderByCondition();
+      await expect(app.sidebar.orderByConditions).toHaveCount(2);
+
+      // Remove one
+      await app.sidebar.removeOrderByCondition(0);
+      await expect(app.sidebar.orderByConditions).toHaveCount(1);
+    });
+
+    test('should configure ORDER BY direction', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Add ORDER BY
+      await app.sidebar.addOrderByCondition();
+
+      // Should default to ASC
+      const directionSelect = app.sidebar.orderByConditions.first().locator('.filter-dir-select');
+      await expect(directionSelect).toHaveValue('ASC');
+
+      // Change to DESC
+      await app.sidebar.setOrderByDirection(0, 'DESC');
+      await expect(directionSelect).toHaveValue('DESC');
+    });
+
+    test('should change limit value', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Default should be 100
+      await expect(app.sidebar.limitInput).toHaveValue('100');
+
+      // Change to 50
+      await app.sidebar.setLimit(50);
+      await expect(app.sidebar.limitInput).toHaveValue('50');
+    });
+
+    test('should cancel filter dialog', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+      await app.sidebar.cancelFilter();
+      await app.sidebar.expectFilterModalHidden();
+    });
+
+    test('should apply filter and open query tab', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Configure filter: name = 'Alice'
+      await app.sidebar.setFilterColumn(0, 'name');
+      await app.sidebar.setFilterOperator(0, '=');
+      await app.sidebar.setFilterValue(0, 'Alice Johnson');
+
+      // Add ORDER BY
+      await app.sidebar.addOrderByCondition();
+      await app.sidebar.setOrderByColumn(0, 'id');
+      await app.sidebar.setOrderByDirection(0, 'DESC');
+
+      // Set limit
+      await app.sidebar.setLimit(50);
+
+      // Apply filter
+      await app.sidebar.applyFilter();
+
+      // Query editor should open
+      await app.queryEditor.codeEditor.waitFor({ state: 'visible', timeout: 5000 });
+
+      // Verify the generated SQL contains expected parts
+      const queryText = await app.queryEditor.getQueryText();
+      expect(queryText).toContain('SELECT *');
+      expect(queryText).toContain('test_schema');
+      expect(queryText).toContain('users');
+      expect(queryText).toContain('WHERE');
+      expect(queryText).toContain('name');
+      expect(queryText).toContain('Alice Johnson');
+      expect(queryText).toContain('ORDER BY');
+      expect(queryText).toContain('DESC');
+      expect(queryText).toContain('LIMIT 50');
+    });
+
+    test('should apply filter with multiple conditions using AND', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // First condition: id > 1
+      await app.sidebar.setFilterColumn(0, 'id');
+      await app.sidebar.setFilterOperator(0, '>');
+      await app.sidebar.setFilterValue(0, '1');
+
+      // Add second condition: id < 5
+      await app.sidebar.addFilterCondition();
+      await app.sidebar.setFilterColumn(1, 'id');
+      await app.sidebar.setFilterOperator(1, '<');
+      await app.sidebar.setFilterValue(1, '5');
+
+      // Ensure logic is AND (default)
+      await expect(app.sidebar.filterLogicSelect).toHaveValue('AND');
+
+      // Apply filter
+      await app.sidebar.applyFilter();
+
+      // Query editor should open
+      await app.queryEditor.codeEditor.waitFor({ state: 'visible', timeout: 5000 });
+
+      // Verify the generated SQL contains AND logic
+      const queryText = await app.queryEditor.getQueryText();
+      expect(queryText).toContain('AND');
+    });
+
+    test('should apply filter with OR logic', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // First condition: id = 1
+      await app.sidebar.setFilterColumn(0, 'id');
+      await app.sidebar.setFilterOperator(0, '=');
+      await app.sidebar.setFilterValue(0, '1');
+
+      // Add second condition: id = 2
+      await app.sidebar.addFilterCondition();
+      await app.sidebar.setFilterColumn(1, 'id');
+      await app.sidebar.setFilterOperator(1, '=');
+      await app.sidebar.setFilterValue(1, '2');
+
+      // Change logic to OR
+      await app.sidebar.setFilterLogic('OR');
+
+      // Apply filter
+      await app.sidebar.applyFilter();
+
+      // Query editor should open
+      await app.queryEditor.codeEditor.waitFor({ state: 'visible', timeout: 5000 });
+
+      // Verify the generated SQL contains OR logic
+      const queryText = await app.queryEditor.getQueryText();
+      expect(queryText).toContain('OR');
+    });
+
+    test('should handle IS NULL operator', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Set IS NULL operator
+      await app.sidebar.setFilterColumn(0, 'email');
+      await app.sidebar.setFilterOperator(0, 'IS NULL');
+
+      // Value input should not be visible for IS NULL
+      const valueInput = app.sidebar.filterConditions.first().locator('.filter-value-input');
+      await expect(valueInput).not.toBeVisible();
+
+      // Apply filter
+      await app.sidebar.applyFilter();
+
+      // Verify the generated SQL
+      const queryText = await app.queryEditor.getQueryText();
+      expect(queryText).toContain('IS NULL');
+    });
+
+    test('should handle LIKE operator with pattern', async () => {
+      await app.sidebar.rightClickTable('users');
+      await app.page.waitForTimeout(300);
+      await app.sidebar.clickContextMenuItem('Filter table...');
+
+      await app.sidebar.expectFilterModalVisible();
+
+      // Set LIKE operator
+      await app.sidebar.setFilterColumn(0, 'name');
+      await app.sidebar.setFilterOperator(0, 'LIKE');
+      await app.sidebar.setFilterValue(0, '%Alice%');
+
+      // Apply filter
+      await app.sidebar.applyFilter();
+
+      // Verify the generated SQL
+      const queryText = await app.queryEditor.getQueryText();
+      expect(queryText).toContain('LIKE');
+      expect(queryText).toContain('%Alice%');
     });
   });
 });

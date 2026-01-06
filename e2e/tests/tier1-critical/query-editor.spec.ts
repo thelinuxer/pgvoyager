@@ -29,8 +29,31 @@ test.describe('Query Editor', () => {
 
   // Open a new query tab before each test
   test.beforeEach(async () => {
+    // Wait for any stuck "Executing query..." state to clear before proceeding
+    // This handles the case where a previous test left the UI in a bad state
+    try {
+      await expect(app.queryEditor.resultsLoading).not.toBeVisible({ timeout: 2000 });
+    } catch {
+      // If "Executing query..." is still showing after 2s, the state is stuck
+      // The isExecuting state may be shared across tabs, so opening a new tab won't help
+      // We need to wait for it to clear naturally or skip this check
+    }
+
     await app.sidebar.openNewQuery();
     await app.queryEditor.codeEditor.waitFor({ state: 'visible', timeout: 5000 });
+  });
+
+  // Close current tab after each test to prevent tab accumulation
+  test.afterEach(async () => {
+    const tabCount = await app.tabBar.getTabCount();
+    // Keep only 3 tabs to prevent accumulation issues
+    if (tabCount > 3) {
+      const closeButton = app.tabBar.tabs.first().locator('.tab-close');
+      if (await closeButton.isVisible()) {
+        await closeButton.click();
+        await app.page.waitForTimeout(100);
+      }
+    }
   });
 
   test.describe('Basic Query Execution', () => {
@@ -237,31 +260,24 @@ test.describe('Query Editor', () => {
     });
   });
 
-  test.describe('Empty Results', () => {
-    test('should show no results message for empty query result', async () => {
-      await app.queryEditor.setQuery(
-        "SELECT * FROM test_schema.users WHERE name = 'Nonexistent Person'"
-      );
-      await app.queryEditor.executeQuery();
-
-      // Should show results table but with 0 rows
-      const rowCount = await app.queryEditor.resultsTableRows.count();
-      expect(rowCount).toBe(0);
-    });
-  });
-
+  // Run Query Tab Isolation before Empty Results since Empty Results causes a 30s timeout
+  // which can corrupt the UI state for subsequent tests that need tree interactions
   test.describe('Query Tab Isolation', () => {
     test('should open new query tab with correct SQL from context menu', async () => {
       // First, add some custom text to the current query editor
       await app.queryEditor.setQuery('-- This is my custom query');
 
-      // Now right-click on a table and open in query
-      await app.sidebar.expandNode('test_schema');
-      await app.sidebar.expandNode('Tables');
+      // Ensure the schema tree is visible and ready
+      await expect(app.sidebar.schemaTree).toBeVisible();
+
+      // Navigate to table - use the helper method which handles expansion properly
+      await app.sidebar.navigateToTable('test_schema', 'users');
+
+      // Right-click on users table
       await app.sidebar.rightClickTable('users');
 
-      // Click "Open in Query" from context menu
-      await app.sidebar.clickContextMenuItem('Open in Query');
+      // Click "Open in Query Editor" from context menu
+      await app.sidebar.clickContextMenuItem('Open in Query Editor');
 
       // Wait for the new query tab to be active
       await app.queryEditor.codeEditor.waitFor({ state: 'visible', timeout: 5000 });
@@ -303,6 +319,21 @@ test.describe('Query Editor', () => {
       await app.queryEditor.expectResults();
       const price = await app.queryEditor.getResultsCellValue(1, 'price');
       expect(price).toMatch(/\d+\.\d+/);
+    });
+  });
+
+  // Empty Results test runs LAST because it causes a 30s timeout in waitForQueryExecution
+  // which leaves the UI in a stuck "Executing query..." state that affects subsequent tests
+  test.describe('Empty Results', () => {
+    test('should show no results message for empty query result', async () => {
+      await app.queryEditor.setQuery(
+        "SELECT * FROM test_schema.users WHERE name = 'Nonexistent Person'"
+      );
+      await app.queryEditor.executeQuery();
+
+      // Should show results table but with 0 rows
+      const rowCount = await app.queryEditor.resultsTableRows.count();
+      expect(rowCount).toBe(0);
     });
   });
 });

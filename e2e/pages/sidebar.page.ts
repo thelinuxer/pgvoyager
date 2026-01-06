@@ -105,8 +105,10 @@ export class SidebarPage extends BasePage {
   // Context menu items
   getContextMenuItem(label: string): Locator {
     // Context menu items are buttons with class .context-menu-item
-    return this.contextMenu.locator('.context-menu-item', { hasText: new RegExp(label, 'i') }).or(
-      this.contextMenu.getByRole('button', { name: new RegExp(label, 'i') })
+    // Escape special regex characters in the label
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return this.contextMenu.locator('.context-menu-item', { hasText: new RegExp(escapedLabel, 'i') }).or(
+      this.contextMenu.getByRole('button', { name: new RegExp(escapedLabel, 'i') })
     );
   }
 
@@ -136,6 +138,9 @@ export class SidebarPage extends BasePage {
 
   async expandNode(nodeName: string): Promise<void> {
     const node = this.getTreeNode(nodeName);
+    // Wait for node to be visible first
+    await node.waitFor({ state: 'visible', timeout: 10000 });
+
     // Check if already expanded by looking for the expanded chevron
     const chevron = node.locator('.tree-chevron.expanded');
     const isExpanded = await chevron.count() > 0;
@@ -143,7 +148,7 @@ export class SidebarPage extends BasePage {
     if (!isExpanded) {
       await node.click();
       // Wait for expansion animation
-      await this.page.waitForTimeout(200);
+      await this.page.waitForTimeout(500);
     }
   }
 
@@ -266,5 +271,126 @@ export class SidebarPage extends BasePage {
 
   async expectContextMenuHidden(): Promise<void> {
     await expect(this.contextMenu).not.toBeVisible();
+  }
+
+  // Filter modal helpers
+  get filterModal(): Locator {
+    return this.page.locator('.filter-modal');
+  }
+
+  get filterModalTitle(): Locator {
+    return this.filterModal.locator('.modal-header h3');
+  }
+
+  get filterTableName(): Locator {
+    return this.filterModal.locator('.filter-table-name');
+  }
+
+  get filterConditions(): Locator {
+    return this.filterModal.locator('.filter-section').first().locator('.filter-condition');
+  }
+
+  get orderByConditions(): Locator {
+    return this.filterModal.locator('.filter-section').nth(1).locator('.filter-condition');
+  }
+
+  get filterLogicSelect(): Locator {
+    return this.filterModal.locator('.logic-select');
+  }
+
+  get limitInput(): Locator {
+    return this.filterModal.locator('.filter-row input[type="number"]');
+  }
+
+  get addConditionButton(): Locator {
+    return this.filterModal.locator('.filter-section').first().locator('.add-btn');
+  }
+
+  get addOrderByButton(): Locator {
+    return this.filterModal.locator('.filter-section').nth(1).locator('.add-btn');
+  }
+
+  get applyFilterButton(): Locator {
+    return this.filterModal.locator('.modal-footer .btn-primary');
+  }
+
+  get cancelFilterButton(): Locator {
+    return this.filterModal.locator('.modal-footer .btn-secondary');
+  }
+
+  async expectFilterModalVisible(): Promise<void> {
+    await expect(this.filterModal).toBeVisible({ timeout: 5000 });
+  }
+
+  async expectFilterModalHidden(): Promise<void> {
+    await expect(this.filterModal).not.toBeVisible();
+  }
+
+  async setFilterColumn(index: number, columnName: string): Promise<void> {
+    const condition = this.filterConditions.nth(index);
+    const columnSelect = condition.locator('.filter-col-select');
+    await columnSelect.selectOption(columnName);
+  }
+
+  async setFilterOperator(index: number, operator: string): Promise<void> {
+    const condition = this.filterConditions.nth(index);
+    const operatorSelect = condition.locator('.filter-op-select');
+    await operatorSelect.selectOption(operator);
+  }
+
+  async setFilterValue(index: number, value: string): Promise<void> {
+    const condition = this.filterConditions.nth(index);
+    const valueInput = condition.locator('.filter-value-input');
+    await valueInput.fill(value);
+  }
+
+  async removeFilterCondition(index: number): Promise<void> {
+    const condition = this.filterConditions.nth(index);
+    const removeButton = condition.locator('.btn-icon');
+    await removeButton.click();
+  }
+
+  async addFilterCondition(): Promise<void> {
+    await this.addConditionButton.click();
+  }
+
+  async setFilterLogic(logic: 'AND' | 'OR'): Promise<void> {
+    await this.filterLogicSelect.selectOption(logic);
+  }
+
+  async setOrderByColumn(index: number, columnName: string): Promise<void> {
+    const condition = this.orderByConditions.nth(index);
+    const columnSelect = condition.locator('select').first();
+    await columnSelect.selectOption(columnName);
+  }
+
+  async setOrderByDirection(index: number, direction: 'ASC' | 'DESC'): Promise<void> {
+    const condition = this.orderByConditions.nth(index);
+    const directionSelect = condition.locator('.filter-dir-select');
+    await directionSelect.selectOption(direction);
+  }
+
+  async addOrderByCondition(): Promise<void> {
+    await this.addOrderByButton.click();
+  }
+
+  async removeOrderByCondition(index: number): Promise<void> {
+    const condition = this.orderByConditions.nth(index);
+    const removeButton = condition.locator('.btn-icon');
+    await removeButton.click();
+  }
+
+  async setLimit(limit: number): Promise<void> {
+    await this.limitInput.fill(limit.toString());
+  }
+
+  async applyFilter(): Promise<void> {
+    await this.applyFilterButton.click();
+    await this.expectFilterModalHidden();
+  }
+
+  async cancelFilter(): Promise<void> {
+    await this.cancelFilterButton.click();
+    await this.expectFilterModalHidden();
   }
 }

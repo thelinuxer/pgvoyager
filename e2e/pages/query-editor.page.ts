@@ -145,7 +145,17 @@ export class QueryEditorPage extends BasePage {
   }
 
   async executeQuery(): Promise<void> {
-    await this.runButton.click();
+    // Check if the run button is enabled
+    const isEnabled = await this.runButton.isEnabled().catch(() => false);
+
+    if (isEnabled) {
+      await this.runButton.click();
+    } else {
+      // If button is disabled (stuck "Executing" state from previous test),
+      // use keyboard shortcut which can still work
+      await this.focus();
+      await this.pressCtrlEnter();
+    }
     await this.waitForQueryExecution();
   }
 

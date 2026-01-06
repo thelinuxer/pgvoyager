@@ -125,6 +125,14 @@
 		filteredTree = filterTree(tree, query);
 	});
 
+	// Expose toggleNode helper for E2E tests
+	$effect(() => {
+		if (typeof window !== 'undefined') {
+			(window as any).__PGVOYAGER_E2E__ = (window as any).__PGVOYAGER_E2E__ || {};
+			(window as any).__PGVOYAGER_E2E__.toggleNode = toggleNode;
+		}
+	});
+
 	function handleNodeClick(node: SchemaTreeNode) {
 		if (node.type === 'schema' || node.type === 'folder') {
 			const key = node.schema ? `${node.schema}:${node.name}` : node.name;

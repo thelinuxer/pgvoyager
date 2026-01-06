@@ -819,3 +819,127 @@ func ListTypes(c *gin.Context) {
 
 	c.JSON(http.StatusOK, types)
 }
+
+// TableColumns represents columns for a specific table
+type TableColumns struct {
+	Schema  string          `json:"schema"`
+	Table   string          `json:"table"`
+	Columns []models.Column `json:"columns"`
+}
+
+// GetAllColumns returns columns for all tables in a single request
+// This is optimized for autocomplete to avoid N+1 queries
+func GetAllColumns(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT
+			n.nspname as schema_name,
+			c.relname as table_name,
+			a.attname as name,
+			a.attnum as position,
+			pg_catalog.format_type(a.atttypid, a.atttypmod) as data_type,
+			t.typname as udt_name,
+			NOT a.attnotnull as is_nullable,
+			pg_catalog.pg_get_expr(d.adbin, d.adrelid) as default_value,
+			COALESCE(pk.is_pk, false) as is_primary_key,
+			COALESCE(fk.is_fk, false) as is_foreign_key,
+			fk.ref_schema,
+			fk.ref_table,
+			fk.ref_column,
+			CASE WHEN a.atttypmod > 0 THEN a.atttypmod - 4 ELSE NULL END as max_length,
+			COALESCE(col_description(c.oid, a.attnum), '') as comment
+		FROM pg_catalog.pg_attribute a
+		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+		JOIN pg_catalog.pg_type t ON t.oid = a.atttypid
+		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+		LEFT JOIN LATERAL (
+			SELECT true as is_pk
+			FROM pg_constraint con
+			WHERE con.conrelid = c.oid
+			  AND con.contype = 'p'
+			  AND a.attnum = ANY(con.conkey)
+		) pk ON true
+		LEFT JOIN LATERAL (
+			SELECT
+				true as is_fk,
+				nf.nspname as ref_schema,
+				cf.relname as ref_table,
+				af.attname as ref_column
+			FROM pg_constraint con
+			JOIN pg_class cf ON cf.oid = con.confrelid
+			JOIN pg_namespace nf ON nf.oid = cf.relnamespace
+			JOIN pg_attribute af ON af.attrelid = con.confrelid
+				AND af.attnum = con.confkey[array_position(con.conkey, a.attnum)]
+			WHERE con.conrelid = c.oid
+			  AND con.contype = 'f'
+			  AND a.attnum = ANY(con.conkey)
+			LIMIT 1
+		) fk ON true
+		WHERE c.relkind IN ('r', 'p')
+		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+		  AND a.attnum > 0
+		  AND NOT a.attisdropped
+		ORDER BY n.nspname, c.relname, a.attnum
+	`
+
+	rows, err := pool.Query(ctx, query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	// Group columns by schema.table
+	tableColumnsMap := make(map[string]*TableColumns)
+
+	for rows.Next() {
+		var schemaName, tableName string
+		var col models.Column
+		var refSchema, refTable, refColumn *string
+
+		if err := rows.Scan(
+			&schemaName, &tableName,
+			&col.Name, &col.Position, &col.DataType, &col.UDTName,
+			&col.IsNullable, &col.DefaultValue, &col.IsPrimaryKey, &col.IsForeignKey,
+			&refSchema, &refTable, &refColumn, &col.MaxLength, &col.Comment,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if col.IsForeignKey && refSchema != nil {
+			col.FKReference = &models.FKRef{
+				Schema: *refSchema,
+				Table:  *refTable,
+				Column: *refColumn,
+			}
+		}
+
+		key := schemaName + "." + tableName
+		if _, exists := tableColumnsMap[key]; !exists {
+			tableColumnsMap[key] = &TableColumns{
+				Schema:  schemaName,
+				Table:   tableName,
+				Columns: []models.Column{},
+			}
+		}
+		tableColumnsMap[key].Columns = append(tableColumnsMap[key].Columns, col)
+	}
+
+	// Convert map to slice
+	result := make([]TableColumns, 0, len(tableColumnsMap))
+	for _, tc := range tableColumnsMap {
+		result = append(result, *tc)
+	}
+
+	c.JSON(http.StatusOK, result)
+}

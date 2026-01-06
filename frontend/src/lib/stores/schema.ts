@@ -57,11 +57,23 @@ export async function loadTableColumns(connId: string, schema: string, table: st
 	}
 }
 
-// Preload columns for all tables (for autocomplete)
+// Preload columns for all tables (for autocomplete) using batch endpoint
 export async function preloadAllColumns(connId: string): Promise<void> {
-	const tableList = get(tables);
-	const promises = tableList.map((t) => loadTableColumns(connId, t.schema, t.name));
-	await Promise.all(promises);
+	try {
+		const allTableColumns = await schemaApi.getAllColumns(connId);
+		if (!allTableColumns) return;
+
+		tableColumns.update((map) => {
+			const newMap = new Map(map);
+			for (const tc of allTableColumns) {
+				const key = `${tc.schema}.${tc.table}`;
+				newMap.set(key, tc.columns);
+			}
+			return newMap;
+		});
+	} catch (e) {
+		console.error('Failed to preload columns for autocomplete:', e);
+	}
 }
 
 export async function loadSchema(connId: string) {

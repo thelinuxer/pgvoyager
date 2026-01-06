@@ -122,6 +122,9 @@ export const schemaApi = {
 	getTableColumns: (connId: string, schema: string, table: string) =>
 		fetchAPI<Column[]>(`/schema/${connId}/tables/${schema}/${table}/columns`),
 
+	getAllColumns: (connId: string) =>
+		fetchAPI<{ schema: string; table: string; columns: Column[] }[]>(`/schema/${connId}/all-columns`),
+
 	getTableConstraints: (connId: string, schema: string, table: string) =>
 		fetchAPI<Constraint[]>(`/schema/${connId}/tables/${schema}/${table}/constraints`),
 

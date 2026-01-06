@@ -29,6 +29,7 @@ func RegisterRoutes(r *gin.Engine) {
 			schema.GET("/tables", handlers.ListTables)
 			schema.GET("/tables/:schema/:table", handlers.GetTableInfo)
 			schema.GET("/tables/:schema/:table/columns", handlers.GetTableColumns)
+			schema.GET("/all-columns", handlers.GetAllColumns)
 			schema.GET("/tables/:schema/:table/constraints", handlers.GetTableConstraints)
 			schema.GET("/tables/:schema/:table/indexes", handlers.GetTableIndexes)
 			schema.GET("/tables/:schema/:table/foreign-keys", handlers.GetForeignKeys)

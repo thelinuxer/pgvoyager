@@ -54,7 +54,8 @@ export class QueryEditorPage extends BasePage {
   }
 
   get resultsTableRows(): Locator {
-    return this.resultsTable.locator('tbody tr');
+    // Exclude empty-row and loading-row rows from the count
+    return this.resultsTable.locator('tbody tr:not(:has(.empty-row)):not(:has(.loading-row))');
   }
 
   get resultsHeader(): Locator {
@@ -221,8 +222,10 @@ export class QueryEditorPage extends BasePage {
   }
 
   async getResultsColumnNames(): Promise<string[]> {
-    const headers = await this.resultsTableHeaders.allTextContents();
-    return headers.map((h) => h.trim());
+    // Get just the column names, not the data types (which are in .col-type)
+    const colNames = this.resultsTable.locator('thead th .col-name');
+    const names = await colNames.allTextContents();
+    return names.map((h) => h.trim());
   }
 
   async getResultsCellValue(row: number, column: string): Promise<string> {

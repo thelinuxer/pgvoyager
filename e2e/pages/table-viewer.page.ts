@@ -59,7 +59,8 @@ export class TableViewerPage extends BasePage {
   }
 
   get tableRows(): Locator {
-    return this.dataTable.locator('tbody tr, .ag-row');
+    // Exclude empty-row and loading-row rows from the count
+    return this.dataTable.locator('tbody tr:not(:has(.empty-row)):not(:has(.loading-row)), .ag-row');
   }
 
   get tableCells(): Locator {
@@ -312,8 +313,10 @@ export class TableViewerPage extends BasePage {
   }
 
   async getColumnNames(): Promise<string[]> {
-    const headers = await this.tableHeaders.allTextContents();
-    return headers.map((h) => h.trim());
+    // Get just the column names, not the data types (which are in .col-type)
+    const colNames = this.table.locator('thead th .col-name');
+    const names = await colNames.allTextContents();
+    return names.map((h) => h.trim());
   }
 
   async getCellValue(row: number, colIndex: number): Promise<string> {

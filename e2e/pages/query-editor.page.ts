@@ -288,4 +288,75 @@ export class QueryEditorPage extends BasePage {
     // Check for CodeMirror syntax classes
     await expect(this.codeEditor.locator('.cm-keyword, .cm-sql-keyword')).toBeVisible();
   }
+
+  // FK-related locators
+  get fkIcons(): Locator {
+    return this.resultsTable.locator('[title="Foreign Key"], .fk-icon');
+  }
+
+  get pkIcons(): Locator {
+    return this.resultsTable.locator('[title="Primary Key"], .pk-icon');
+  }
+
+  get fkCells(): Locator {
+    return this.resultsTable.locator('td.fk-column');
+  }
+
+  get fkPreviewPopup(): Locator {
+    return this.page.locator('.fk-popup');
+  }
+
+  // FK-related methods
+  async getFKIconCount(): Promise<number> {
+    return await this.fkIcons.count();
+  }
+
+  async getPKIconCount(): Promise<number> {
+    return await this.pkIcons.count();
+  }
+
+  async getFKCellCount(): Promise<number> {
+    return await this.fkCells.count();
+  }
+
+  async hoverFKCell(index: number = 0): Promise<void> {
+    const cell = this.fkCells.nth(index);
+    await cell.hover();
+    // Wait for preview popup to appear
+    await this.page.waitForTimeout(500);
+  }
+
+  async clickFKCell(index: number = 0): Promise<void> {
+    const cell = this.fkCells.nth(index);
+    await cell.click();
+  }
+
+  async getFKCellValue(index: number = 0): Promise<string> {
+    const cell = this.fkCells.nth(index);
+    return (await cell.textContent()) || '';
+  }
+
+  async expectFKIcon(): Promise<void> {
+    await expect(this.fkIcons.first()).toBeVisible();
+  }
+
+  async expectPKIcon(): Promise<void> {
+    await expect(this.pkIcons.first()).toBeVisible();
+  }
+
+  async expectFKPreviewPopup(): Promise<void> {
+    await expect(this.fkPreviewPopup).toBeVisible({ timeout: 3000 });
+  }
+
+  async expectNoFKPreviewPopup(): Promise<void> {
+    await expect(this.fkPreviewPopup).not.toBeVisible({ timeout: 3000 });
+  }
+
+  async expectFKCellsClickable(): Promise<void> {
+    const firstFkCell = this.fkCells.first();
+    await expect(firstFkCell).toBeVisible();
+    // FK cells should have cursor: pointer style
+    const cursor = await firstFkCell.evaluate((el) => getComputedStyle(el).cursor);
+    expect(cursor).toBe('pointer');
+  }
 }

@@ -88,7 +88,11 @@
 		{ tag: tags.propertyName, color: 'var(--color-info)' }
 	]);
 	import ResizeHandle from './ResizeHandle.svelte';
+	import DataGrid from './DataGrid.svelte';
+	import FKPreviewPopup from './FKPreviewPopup.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
+	import { dataApi } from '$lib/api/client';
+	import type { ColumnInfo, ForeignKeyPreview } from '$lib/types';
 
 	// Error highlighting extension
 	const setErrorEffect = StateEffect.define<{ from: number; to: number } | null>();
@@ -138,7 +142,8 @@
 
 	// Initialize query: use persisted content if available, otherwise use initialSql
 	let query = $state(tab.queryContent ?? tab.initialSql ?? 'SELECT * FROM ');
-	let result = $state<QueryResult | null>(null);
+	// Initialize result from tab.data if available (persisted across tab switches)
+	let result = $state<QueryResult | null>((tab.data as QueryResult) ?? null);
 	let isExecuting = $state(false);
 	let executionTime = $state<number | null>(null);
 	let containerEl: HTMLDivElement;
@@ -147,13 +152,46 @@
 	let page = $state(1);
 	let pageSize = $state(100);
 
+	// Sorting state for results (client-side)
+	let orderBy = $state<string | null>(null);
+	let orderDir = $state<'ASC' | 'DESC'>('ASC');
+
+	// FK preview state
+	let fkPreview = $state<ForeignKeyPreview | null>(null);
+	let fkPreviewPosition = $state({ x: 0, y: 0 });
+	let fkPreviewLoading = $state(false);
+	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Derived: sorted rows
+	let sortedRows = $derived.by(() => {
+		if (!result || !orderBy) return result?.rows || [];
+		const col = orderBy;
+		const dir = orderDir;
+		return [...result.rows].sort((a, b) => {
+			const aVal = a[col];
+			const bVal = b[col];
+			// Handle nulls - null values go to the end
+			if (aVal === null && bVal === null) return 0;
+			if (aVal === null) return 1;
+			if (bVal === null) return -1;
+			// Compare values
+			if (typeof aVal === 'number' && typeof bVal === 'number') {
+				return dir === 'ASC' ? aVal - bVal : bVal - aVal;
+			}
+			const aStr = String(aVal);
+			const bStr = String(bVal);
+			return dir === 'ASC' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
+		});
+	});
+
 	// Derived pagination values
 	let totalPages = $derived(result ? Math.max(1, Math.ceil(result.rowCount / pageSize)) : 1);
 	let paginatedRows = $derived.by(() => {
 		if (!result) return [];
 		const start = (page - 1) * pageSize;
 		const end = start + pageSize;
-		return result.rows.slice(start, end);
+		return sortedRows.slice(start, end);
 	});
 
 	// Detect tab switches and load the appropriate content
@@ -167,8 +205,9 @@
 			// Tab changed - load content for the new tab
 			currentTabId = newTabId;
 			query = tab.queryContent ?? tab.initialSql ?? 'SELECT * FROM ';
-			result = null;
-			executionTime = null;
+			// Load persisted result from tab.data
+			result = (tab.data as QueryResult) ?? null;
+			executionTime = result?.duration ?? null;
 		}
 	});
 
@@ -184,6 +223,17 @@
 		if (currentQuery !== undefined && tabId) {
 			untrack(() => {
 				tabs.updateQueryContent(tabId, currentQuery);
+			});
+		}
+	});
+
+	// Persist query results to tab state when they change
+	$effect(() => {
+		const currentResult = result;
+		const tabId = untrack(() => currentTabId);
+		if (tabId) {
+			untrack(() => {
+				tabs.updateQueryResult(tabId, currentResult);
 			});
 		}
 	});
@@ -335,6 +385,8 @@
 		isExecuting = true;
 		result = null;
 		page = 1; // Reset pagination on new query
+		orderBy = null; // Reset sorting on new query
+		orderDir = 'ASC';
 		clearErrorHighlight();
 
 		const startTime = performance.now();
@@ -413,13 +465,98 @@
 		}
 	}
 
-	function formatValue(value: unknown): string {
-		if (value === null) return 'NULL';
-		if (value === undefined) return '';
-		if (typeof value === 'object') {
-			return JSON.stringify(value);
+	function handleSort(column: string) {
+		if (orderBy === column) {
+			orderDir = orderDir === 'ASC' ? 'DESC' : 'ASC';
+		} else {
+			orderBy = column;
+			orderDir = 'ASC';
 		}
-		return String(value);
+		page = 1; // Reset to first page when sorting
+	}
+
+	function handlePageChange(newPage: number) {
+		page = newPage;
+	}
+
+	function handlePageSizeChange(newPageSize: number) {
+		pageSize = newPageSize;
+		page = 1;
+	}
+
+	// FK handlers
+	function handleFKClick(col: ColumnInfo, value: unknown) {
+		if (!col.fkReference || value === null) return;
+
+		// Handle FK click - respects tab pinning (pinned = new tab, unpinned = navigate within)
+		tabs.handleFKClick(
+			tab.id,
+			col.fkReference.schema,
+			col.fkReference.table,
+			col.fkReference.column,
+			String(value)
+		);
+	}
+
+	async function handleFKHover(e: MouseEvent, col: ColumnInfo, value: unknown) {
+		if (!col.fkReference || value === null || !$activeConnectionId) return;
+
+		// Clear any existing timeouts
+		if (hoverTimeout) {
+			clearTimeout(hoverTimeout);
+		}
+		if (closeTimeout) {
+			clearTimeout(closeTimeout);
+			closeTimeout = null;
+		}
+
+		// Update position immediately
+		fkPreviewPosition = { x: e.clientX, y: e.clientY };
+
+		// Delay before fetching to avoid excessive API calls
+		hoverTimeout = setTimeout(async () => {
+			fkPreviewLoading = true;
+			try {
+				fkPreview = await dataApi.getForeignKeyPreview(
+					$activeConnectionId!,
+					col.fkReference!.schema,
+					col.fkReference!.table,
+					col.fkReference!.column,
+					String(value)
+				);
+			} catch (e) {
+				console.error('Failed to load FK preview:', e);
+				fkPreview = null;
+			} finally {
+				fkPreviewLoading = false;
+			}
+		}, 300);
+	}
+
+	function handleFKLeave() {
+		if (hoverTimeout) {
+			clearTimeout(hoverTimeout);
+			hoverTimeout = null;
+		}
+		// Delay closing to allow mouse to move to popup
+		closeTimeout = setTimeout(() => {
+			fkPreview = null;
+			fkPreviewLoading = false;
+		}, 150);
+	}
+
+	function handlePopupEnter() {
+		// Cancel close when mouse enters popup
+		if (closeTimeout) {
+			clearTimeout(closeTimeout);
+			closeTimeout = null;
+		}
+	}
+
+	function handlePopupLeave() {
+		// Close popup when mouse leaves it
+		fkPreview = null;
+		fkPreviewLoading = false;
 	}
 
 	function formatCsvValue(value: unknown): string {
@@ -521,92 +658,32 @@
 				{/if}
 			</div>
 		{:else if result}
-			<div class="results-header" data-testid="results-header">
-				<span data-testid="row-count">{result.rowCount} row{result.rowCount !== 1 ? 's' : ''} returned</span>
-				<button class="btn btn-sm btn-ghost" data-testid="btn-export-csv" onclick={exportToCsv} title="Export to CSV">
-					<Icon name="download" size={14} />
-					Export CSV
-				</button>
-			</div>
-			<div class="results-table-container" data-testid="results-table">
-				{#if result.columns.length > 0}
-					<table class="data-table">
-						<thead>
-							<tr>
-								{#each result.columns as col}
-									<th data-column="{col.name}">{col.name}</th>
-								{/each}
-							</tr>
-						</thead>
-						<tbody>
-							{#each paginatedRows as row}
-								<tr>
-									{#each result.columns as col}
-										<td class:null-value={row[col.name] === null}>
-											{formatValue(row[col.name])}
-										</td>
-									{/each}
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				{:else}
-					<div class="results-empty">Query executed successfully (no results)</div>
-				{/if}
-			</div>
-			{#if result.rowCount > pageSize}
-				<div class="pagination" data-testid="pagination">
-					<div class="pagination-info">
-						Showing {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, result.rowCount)} of {result.rowCount.toLocaleString()}
-					</div>
-					<div class="pagination-controls">
-						<button
-							class="btn btn-sm btn-ghost"
-							disabled={page === 1}
-							onclick={() => page = 1}
-							title="First page"
-						>
-							<Icon name="chevrons-left" size={14} />
-						</button>
-						<button
-							class="btn btn-sm btn-ghost"
-							disabled={page === 1}
-							onclick={() => page--}
-							title="Previous page"
-						>
-							<Icon name="chevron-left" size={14} />
-						</button>
-						<span class="page-info">Page {page} of {totalPages}</span>
-						<button
-							class="btn btn-sm btn-ghost"
-							disabled={page === totalPages}
-							onclick={() => page++}
-							title="Next page"
-						>
-							<Icon name="chevron-right" size={14} />
-						</button>
-						<button
-							class="btn btn-sm btn-ghost"
-							disabled={page === totalPages}
-							onclick={() => page = totalPages}
-							title="Last page"
-						>
-							<Icon name="chevrons-right" size={14} />
-						</button>
-					</div>
-					<div class="page-size">
-						<select
-							bind:value={pageSize}
-							onchange={() => page = 1}
-						>
-							<option value={50}>50 rows</option>
-							<option value={100}>100 rows</option>
-							<option value={250}>250 rows</option>
-							<option value={500}>500 rows</option>
-							<option value={1000}>1000 rows</option>
-						</select>
-					</div>
+			{#if result.columns.length > 0}
+				<div class="results-header" data-testid="results-header">
+					<span data-testid="row-count">{result.rowCount} row{result.rowCount !== 1 ? 's' : ''} returned</span>
 				</div>
+				<div class="results-grid-container" data-testid="results-table">
+					<DataGrid
+						columns={result.columns}
+						rows={paginatedRows}
+						totalRows={result.rowCount}
+						{page}
+						{pageSize}
+						{totalPages}
+						{orderBy}
+						{orderDir}
+						onSort={handleSort}
+						onPageChange={handlePageChange}
+						onPageSizeChange={handlePageSizeChange}
+						showExport={true}
+						onExport={exportToCsv}
+						onFKClick={handleFKClick}
+						onFKHover={handleFKHover}
+						onFKLeave={handleFKLeave}
+					/>
+				</div>
+			{:else}
+				<div class="results-empty">Query executed successfully (no results)</div>
 			{/if}
 		{:else}
 			<div class="results-empty">
@@ -616,6 +693,17 @@
 		{/if}
 	</div>
 </div>
+
+{#if fkPreview || fkPreviewLoading}
+	<FKPreviewPopup
+		preview={fkPreview}
+		loading={fkPreviewLoading}
+		x={fkPreviewPosition.x}
+		y={fkPreviewPosition.y}
+		onMouseEnter={handlePopupEnter}
+		onMouseLeave={handlePopupLeave}
+	/>
+{/if}
 
 <style>
 	.query-editor {
@@ -716,9 +804,9 @@
 		color: var(--color-text-muted);
 	}
 
-	.results-table-container {
+	.results-grid-container {
 		flex: 1;
-		overflow: auto;
+		overflow: hidden;
 	}
 
 	.results-loading,
@@ -790,38 +878,4 @@
 		background-color: rgba(137, 180, 250, 0.5) !important;
 	}
 
-	/* Pagination styles (matches TableViewer) */
-	.pagination {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 8px 16px;
-		background: var(--color-bg-secondary);
-		border-top: 1px solid var(--color-border);
-	}
-
-	.pagination-info {
-		font-size: 12px;
-		color: var(--color-text-muted);
-	}
-
-	.pagination-controls {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.pagination-controls .btn {
-		padding: 4px 6px;
-	}
-
-	.page-info {
-		padding: 0 12px;
-		font-size: 13px;
-	}
-
-	.page-size select {
-		padding: 4px 8px;
-		font-size: 12px;
-	}
 </style>

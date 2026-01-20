@@ -5,6 +5,7 @@
 	import { dataApi } from '$lib/api/client';
 	import type { Tab, TableDataResponse, ColumnInfo, ForeignKeyPreview, TableLocation } from '$lib/types';
 	import FKPreviewPopup from './FKPreviewPopup.svelte';
+	import DataGrid from './DataGrid.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
@@ -136,6 +137,20 @@
 		loadData();
 	}
 
+	function handlePageSizeChange(newPageSize: number) {
+		pageSize = newPageSize;
+		page = 1;
+		loadData();
+	}
+
+	function handleEditValueChange(value: string) {
+		editValue = value;
+	}
+
+	function handleCellBlur(rowIndex: number, colName: string) {
+		saveCell(rowIndex, colName);
+	}
+
 	function handleFKClick(col: ColumnInfo, value: unknown) {
 		if (!col.fkReference || value === null) return;
 
@@ -232,21 +247,6 @@
 		// Close popup when mouse leaves it
 		fkPreview = null;
 		fkPreviewLoading = false;
-	}
-
-	function formatValue(value: unknown): string {
-		if (value === null) return 'NULL';
-		if (value === undefined) return '';
-		if (typeof value === 'object') {
-			return JSON.stringify(value);
-		}
-		return String(value);
-	}
-
-	// Action to focus input on mount
-	function focusOnMount(node: HTMLInputElement) {
-		node.focus();
-		node.select();
 	}
 
 	// CRUD functions
@@ -504,147 +504,36 @@
 				</button>
 			</div>
 		{/if}
-		<div class="table-container">
-			<table class="data-table" class:edit-mode={editMode}>
-				<thead>
-					<tr>
-						{#if editMode}
-							<th class="checkbox-col">
-								<input
-									type="checkbox"
-									checked={data.rows.length > 0 && selectedRows.size === data.rows.length}
-									onchange={toggleSelectAll}
-									title="Select all"
-								/>
-							</th>
-						{/if}
-						{#each data.columns as col}
-							<th
-								class:sortable={true}
-								class:sorted={orderBy === col.name}
-								onclick={() => handleSort(col.name)}
-							>
-								<div class="th-content">
-									{#if col.isPrimaryKey}
-										<span class="pk-icon" title="Primary Key">
-											<Icon name="key" size={12} />
-										</span>
-									{/if}
-									{#if col.isForeignKey}
-										<span class="fk-icon" title="Foreign Key">
-											<Icon name="link" size={12} />
-										</span>
-									{/if}
-									<span class="col-name">{col.name}</span>
-									{#if orderBy === col.name}
-										<Icon name={orderDir === 'ASC' ? 'arrow-up' : 'arrow-down'} size={12} class="sort-icon" />
-									{/if}
-								</div>
-								<div class="col-type">{col.dataType}</div>
-							</th>
-						{/each}
-					</tr>
-				</thead>
-				<tbody>
-					{#each data.rows as row, rowIndex}
-						<tr class:selected={editMode && selectedRows.has(rowIndex)}>
-							{#if editMode}
-								<td class="checkbox-col">
-									<input
-										type="checkbox"
-										checked={selectedRows.has(rowIndex)}
-										onchange={() => toggleRowSelection(rowIndex)}
-									/>
-								</td>
-							{/if}
-							{#each data.columns as col}
-								{@const isEditing = editingCell?.rowIndex === rowIndex && editingCell?.colName === col.name}
-								<td
-									class:pk-column={col.isPrimaryKey}
-									class:fk-column={col.isForeignKey && row[col.name] !== null}
-									class:null-value={row[col.name] === null}
-									class:editable={editMode && !col.isPrimaryKey}
-									class:editing={isEditing}
-									onclick={() => !editMode && col.isForeignKey && handleFKClick(col, row[col.name])}
-									ondblclick={() => !col.isPrimaryKey && handleCellDoubleClick(rowIndex, col.name, row[col.name])}
-									onmouseenter={(e) => !editMode && handleFKHover(e, col, row[col.name])}
-									onmouseleave={() => !editMode && handleFKLeave()}
-								>
-									{#if isEditing}
-										<!-- svelte-ignore a11y_autofocus -->
-										<input
-											type="text"
-											class="cell-input"
-											bind:value={editValue}
-											onkeydown={(e) => handleCellKeydown(e, rowIndex, col.name)}
-											onblur={() => saveCell(rowIndex, col.name)}
-											use:focusOnMount
-										/>
-									{:else}
-										{formatValue(row[col.name])}
-									{/if}
-								</td>
-							{/each}
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-
-		<div class="pagination">
-			<div class="pagination-info">
-				Showing {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, data.totalRows)} of {data.totalRows.toLocaleString()}
-			</div>
-			<div class="pagination-controls">
-				<button
-					class="btn btn-sm btn-ghost"
-					disabled={page === 1}
-					onclick={() => handlePageChange(1)}
-					title="First page"
-				>
-					<Icon name="chevrons-left" size={14} />
-				</button>
-				<button
-					class="btn btn-sm btn-ghost"
-					disabled={page === 1}
-					onclick={() => handlePageChange(page - 1)}
-					title="Previous page"
-				>
-					<Icon name="chevron-left" size={14} />
-				</button>
-				<span class="page-info">Page {page} of {data.totalPages}</span>
-				<button
-					class="btn btn-sm btn-ghost"
-					disabled={page === data.totalPages}
-					onclick={() => handlePageChange(page + 1)}
-					title="Next page"
-				>
-					<Icon name="chevron-right" size={14} />
-				</button>
-				<button
-					class="btn btn-sm btn-ghost"
-					disabled={page === data.totalPages}
-					onclick={() => handlePageChange(data!.totalPages)}
-					title="Last page"
-				>
-					<Icon name="chevrons-right" size={14} />
-				</button>
-			</div>
-			<div class="page-size">
-				<select
-					bind:value={pageSize}
-					onchange={() => {
-						page = 1;
-						loadData();
-					}}
-				>
-					<option value={50}>50 rows</option>
-					<option value={100}>100 rows</option>
-					<option value={250}>250 rows</option>
-					<option value={500}>500 rows</option>
-					<option value={1000}>1000 rows</option>
-				</select>
-			</div>
+		<div class="grid-container">
+			<DataGrid
+				columns={data.columns}
+				rows={data.rows}
+				totalRows={data.totalRows}
+				{page}
+				{pageSize}
+				totalPages={data.totalPages}
+				{orderBy}
+				{orderDir}
+				onSort={handleSort}
+				onPageChange={handlePageChange}
+				onPageSizeChange={handlePageSizeChange}
+				{editMode}
+				{hasPrimaryKey}
+				{selectedRows}
+				{editingCell}
+				{editValue}
+				onCellDoubleClick={handleCellDoubleClick}
+				onCellKeydown={handleCellKeydown}
+				onCellBlur={handleCellBlur}
+				onEditValueChange={handleEditValueChange}
+				onToggleRowSelection={toggleRowSelection}
+				onToggleSelectAll={toggleSelectAll}
+				{isSaving}
+				onFKClick={handleFKClick}
+				onFKHover={handleFKHover}
+				onFKLeave={handleFKLeave}
+				isLoading={isLoading}
+			/>
 		</div>
 	{/if}
 </div>
@@ -847,78 +736,9 @@
 		to { transform: rotate(360deg); }
 	}
 
-	.table-container {
+	.grid-container {
 		flex: 1;
-		overflow: auto;
-	}
-
-	.th-content {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.col-type {
-		font-size: 10px;
-		font-weight: normal;
-		color: var(--color-text-dim);
-		margin-top: 2px;
-	}
-
-	.pk-icon {
-		display: flex;
-		color: var(--color-warning);
-	}
-
-	.fk-icon {
-		display: flex;
-		color: var(--color-primary);
-	}
-
-	th.sortable {
-		cursor: pointer;
-	}
-
-	th.sortable:hover {
-		background: var(--color-surface);
-	}
-
-	.sort-icon {
-		color: var(--color-primary);
-	}
-
-	.pagination {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 8px 16px;
-		background: var(--color-bg-secondary);
-		border-top: 1px solid var(--color-border);
-	}
-
-	.pagination-info {
-		font-size: 12px;
-		color: var(--color-text-muted);
-	}
-
-	.pagination-controls {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.pagination-controls .btn {
-		padding: 4px 6px;
-	}
-
-	.page-info {
-		padding: 0 12px;
-		font-size: 13px;
-	}
-
-	.page-size select {
-		padding: 4px 8px;
-		font-size: 12px;
+		overflow: hidden;
 	}
 
 	/* CRUD Styles */
@@ -943,50 +763,6 @@
 
 	.crud-error-close:hover {
 		opacity: 1;
-	}
-
-	.checkbox-col {
-		width: 40px;
-		text-align: center;
-		padding: 8px !important;
-	}
-
-	.checkbox-col input[type="checkbox"] {
-		width: 16px;
-		height: 16px;
-		cursor: pointer;
-	}
-
-	tr.selected {
-		background: rgba(137, 180, 250, 0.15) !important;
-	}
-
-	tr.selected:hover {
-		background: rgba(137, 180, 250, 0.2) !important;
-	}
-
-	.data-table.edit-mode td.editable {
-		cursor: text;
-	}
-
-	.data-table.edit-mode td.editable:hover {
-		background: rgba(137, 180, 250, 0.1);
-	}
-
-	td.editing {
-		padding: 0 !important;
-	}
-
-	.cell-input {
-		width: 100%;
-		height: 100%;
-		padding: 8px 12px;
-		border: 2px solid var(--color-primary);
-		background: var(--color-bg);
-		color: var(--color-text);
-		font-family: var(--font-mono);
-		font-size: 13px;
-		outline: none;
 	}
 
 	/* Add Row Modal */

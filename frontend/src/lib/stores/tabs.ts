@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { Tab, TableLocation, ERDLocation } from '$lib/types';
+import type { Tab, TableLocation, ERDLocation, QueryResult } from '$lib/types';
 
 function generateTabId(): string {
 	return `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -511,13 +511,13 @@ function createTabsStore() {
 
 			const filter = { column: filterColumn, value: filterValue };
 
-			if (currentTab.isPinned) {
-				// Pinned tab: open in new tab (or replace unpinned tab)
+			if (currentTab.isPinned || currentTab.type === 'query') {
+				// Pinned tab or query tab: open in new tab (or replace unpinned table tab)
 				let tabIdToActivate: string | null = null;
 
 				update((tabs) => {
-					// Find first unpinned tab to potentially replace
-					const unpinnedIndex = tabs.findIndex((t) => !t.isPinned);
+					// Find first unpinned table tab to potentially replace (don't replace query tabs)
+					const unpinnedTableIndex = tabs.findIndex((t) => !t.isPinned && t.type === 'table');
 
 					const initialLocation: TableLocation = { schema, table, filter };
 					const newTab: Tab = {
@@ -532,13 +532,13 @@ function createTabsStore() {
 					};
 
 					let newTabs: Tab[];
-					if (unpinnedIndex === -1) {
-						// No unpinned tabs, add new one
+					if (unpinnedTableIndex === -1) {
+						// No unpinned table tabs, add new one
 						newTabs = [...tabs, newTab];
 					} else {
-						// Replace the first unpinned tab
+						// Replace the first unpinned table tab
 						newTabs = [...tabs];
-						newTabs[unpinnedIndex] = newTab;
+						newTabs[unpinnedTableIndex] = newTab;
 					}
 
 					tabIdToActivate = newTab.id;
@@ -793,6 +793,13 @@ function createTabsStore() {
 		updateQueryContent: (id: string, queryContent: string) => {
 			update((tabs) =>
 				tabs.map((t) => (t.id === id ? { ...t, queryContent } : t))
+			);
+		},
+
+		// Update query results for a query tab (persists across tab switches)
+		updateQueryResult: (id: string, data: QueryResult | null) => {
+			update((tabs) =>
+				tabs.map((t) => (t.id === id ? { ...t, data: data ?? undefined } : t))
 			);
 		},
 

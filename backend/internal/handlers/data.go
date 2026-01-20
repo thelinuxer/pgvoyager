@@ -22,6 +22,148 @@ func isValidIdentifier(s string) bool {
 	return identifierRegex.MatchString(s)
 }
 
+// getTypeNames converts PostgreSQL OIDs to type names using pg_type
+func getTypeNames(ctx context.Context, pool interface{ Query(context.Context, string, ...any) (pgx.Rows, error) }, oids []uint32) (map[uint32]string, error) {
+	if len(oids) == 0 {
+		return make(map[uint32]string), nil
+	}
+
+	// Build query with OID list
+	placeholders := make([]string, len(oids))
+	args := make([]any, len(oids))
+	for i, oid := range oids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = oid
+	}
+
+	query := fmt.Sprintf(`
+		SELECT oid, typname
+		FROM pg_type
+		WHERE oid IN (%s)
+	`, strings.Join(placeholders, ", "))
+
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	typeNames := make(map[uint32]string)
+	for rows.Next() {
+		var oid uint32
+		var typname string
+		if err := rows.Scan(&oid, &typname); err != nil {
+			return nil, err
+		}
+		typeNames[oid] = typname
+	}
+
+	return typeNames, nil
+}
+
+// ColumnFKInfo holds FK information for a column identified by table OID and attribute number
+type ColumnFKInfo struct {
+	IsPrimaryKey bool
+	IsForeignKey bool
+	FKReference  *models.FKRef
+}
+
+// getColumnFKInfo looks up primary key and foreign key information for columns based on their table OID and attribute number
+func getColumnFKInfo(ctx context.Context, pool interface{ Query(context.Context, string, ...any) (pgx.Rows, error) }, tableOIDs []uint32) (map[uint32]map[uint16]ColumnFKInfo, error) {
+	if len(tableOIDs) == 0 {
+		return make(map[uint32]map[uint16]ColumnFKInfo), nil
+	}
+
+	// Build query with table OID list
+	placeholders := make([]string, len(tableOIDs))
+	args := make([]any, len(tableOIDs))
+	for i, oid := range tableOIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = oid
+	}
+
+	// Query to get PK and FK info for columns in the specified tables
+	query := fmt.Sprintf(`
+		WITH pk_cols AS (
+			SELECT
+				c.conrelid as table_oid,
+				unnest(c.conkey) as attnum
+			FROM pg_constraint c
+			WHERE c.contype = 'p'
+			AND c.conrelid IN (%s)
+		),
+		fk_cols AS (
+			SELECT
+				c.conrelid as table_oid,
+				u.key_attnum as attnum,
+				ref_ns.nspname as ref_schema,
+				ref_cls.relname as ref_table,
+				ref_att.attname as ref_column
+			FROM pg_constraint c
+			JOIN pg_class ref_cls ON ref_cls.oid = c.confrelid
+			JOIN pg_namespace ref_ns ON ref_ns.oid = ref_cls.relnamespace
+			CROSS JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS u(key_attnum, ref_attnum, ord)
+			JOIN pg_attribute ref_att ON ref_att.attrelid = c.confrelid AND ref_att.attnum = u.ref_attnum
+			WHERE c.contype = 'f'
+			AND c.conrelid IN (%s)
+		)
+		SELECT
+			a.attrelid as table_oid,
+			a.attnum,
+			COALESCE(pk.attnum IS NOT NULL, false) as is_pk,
+			COALESCE(fk.attnum IS NOT NULL, false) as is_fk,
+			fk.ref_schema,
+			fk.ref_table,
+			fk.ref_column
+		FROM pg_attribute a
+		LEFT JOIN pk_cols pk ON pk.table_oid = a.attrelid AND pk.attnum = a.attnum
+		LEFT JOIN fk_cols fk ON fk.table_oid = a.attrelid AND fk.attnum = a.attnum
+		WHERE a.attrelid IN (%s)
+		AND a.attnum > 0
+		AND NOT a.attisdropped
+		AND (pk.attnum IS NOT NULL OR fk.attnum IS NOT NULL)
+	`, strings.Join(placeholders, ", "), strings.Join(placeholders, ", "), strings.Join(placeholders, ", "))
+
+	// PostgreSQL reuses the same parameter for all occurrences of $1, $2, etc.
+	// so we only need to pass args once
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uint32]map[uint16]ColumnFKInfo)
+	for rows.Next() {
+		var tableOID uint32
+		var attnum uint16
+		var isPK, isFK bool
+		var refSchema, refTable, refColumn *string
+
+		if err := rows.Scan(&tableOID, &attnum, &isPK, &isFK, &refSchema, &refTable, &refColumn); err != nil {
+			return nil, err
+		}
+
+		if result[tableOID] == nil {
+			result[tableOID] = make(map[uint16]ColumnFKInfo)
+		}
+
+		info := ColumnFKInfo{
+			IsPrimaryKey: isPK,
+			IsForeignKey: isFK,
+		}
+		if isFK && refSchema != nil && refTable != nil && refColumn != nil {
+			info.FKReference = &models.FKRef{
+				Schema: *refSchema,
+				Table:  *refTable,
+				Column: *refColumn,
+			}
+		}
+		result[tableOID][attnum] = info
+	}
+
+	return result, nil
+}
+
 // buildErrorResult creates a QueryResult with detailed error information from PgError
 // positionOffset is added to the error position (for multi-statement queries)
 func buildErrorResult(err error, duration float64, positionOffset int) models.QueryResult {
@@ -488,12 +630,64 @@ func ExecuteQuery(c *gin.Context) {
 	defer rows.Close()
 
 	fieldDescs := rows.FieldDescriptions()
+
+	// Collect unique type OIDs and table OIDs
+	typeOIDSet := make(map[uint32]bool)
+	tableOIDSet := make(map[uint32]bool)
+	for _, fd := range fieldDescs {
+		typeOIDSet[fd.DataTypeOID] = true
+		if fd.TableOID != 0 {
+			tableOIDSet[fd.TableOID] = true
+		}
+	}
+
+	typeOIDs := make([]uint32, 0, len(typeOIDSet))
+	for oid := range typeOIDSet {
+		typeOIDs = append(typeOIDs, oid)
+	}
+
+	tableOIDs := make([]uint32, 0, len(tableOIDSet))
+	for oid := range tableOIDSet {
+		tableOIDs = append(tableOIDs, oid)
+	}
+
+	// Look up type names
+	typeNames, err := getTypeNames(ctx, pool, typeOIDs)
+	if err != nil {
+		// Fall back to OID if type lookup fails
+		typeNames = make(map[uint32]string)
+	}
+
+	// Look up FK info for columns that come from real tables
+	fkInfo, err := getColumnFKInfo(ctx, pool, tableOIDs)
+	if err != nil {
+		// Continue without FK info if lookup fails
+		fkInfo = make(map[uint32]map[uint16]ColumnFKInfo)
+	}
+
 	columns := make([]models.ColumnInfo, len(fieldDescs))
 	for i, fd := range fieldDescs {
-		columns[i] = models.ColumnInfo{
-			Name:     string(fd.Name),
-			DataType: fmt.Sprintf("%d", fd.DataTypeOID),
+		typeName := typeNames[fd.DataTypeOID]
+		if typeName == "" {
+			typeName = fmt.Sprintf("oid:%d", fd.DataTypeOID)
 		}
+		col := models.ColumnInfo{
+			Name:     string(fd.Name),
+			DataType: typeName,
+		}
+
+		// Add FK info if available for this column
+		if fd.TableOID != 0 {
+			if tableInfo, ok := fkInfo[fd.TableOID]; ok {
+				if colInfo, ok := tableInfo[fd.TableAttributeNumber]; ok {
+					col.IsPrimaryKey = colInfo.IsPrimaryKey
+					col.IsForeignKey = colInfo.IsForeignKey
+					col.FKReference = colInfo.FKReference
+				}
+			}
+		}
+
+		columns[i] = col
 	}
 
 	var data []map[string]any

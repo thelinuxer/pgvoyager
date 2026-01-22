@@ -7,8 +7,9 @@ LDFLAGS := -s -w -X github.com/thelinuxer/pgvoyager/internal/version.Version=$(V
 
 # Default target: run both backend and frontend
 dev:
-	@echo "Starting PgVoyager..."
+	@echo "Starting PgVoyager (dev mode - isolated config)..."
 	@echo "App available at http://localhost:5137"
+	@echo "Config directory: /tmp/pgvoyager-dev-config"
 	@make -j2 backend frontend
 
 # Run for e2e tests with isolated config directory (doesn't affect your real config)
@@ -26,7 +27,7 @@ backend-e2e:
 # Run backend in development mode (on port 5138, proxied by frontend)
 backend:
 	@echo "Starting Go backend on port 5138..."
-	cd backend && PGVOYAGER_PORT=5138 go run ./cmd/server
+	cd backend && PGVOYAGER_PORT=5138 PGVOYAGER_CONFIG_DIR=/tmp/pgvoyager-dev-config go run ./cmd/server
 
 # Run frontend in development mode
 frontend:
@@ -105,9 +106,9 @@ clean:
 	rm -rf frontend/.svelte-kit
 	rm -rf frontend/build
 
-# Run backend only
+# Run backend only (dev mode - isolated config)
 run-backend:
-	cd backend && go run ./cmd/server
+	cd backend && PGVOYAGER_CONFIG_DIR=/tmp/pgvoyager-dev-config go run ./cmd/server
 
 # Run frontend only
 run-frontend:

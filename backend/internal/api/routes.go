@@ -52,6 +52,11 @@ func RegisterRoutes(r *gin.Engine) {
 			data.DELETE("/tables/:schema/:table/rows", handlers.DeleteRow)
 			// Table operations
 			data.DELETE("/tables/:schema/:table", handlers.DropTable)
+			// Schema DDL operations
+			data.POST("/schemas", handlers.CreateSchema)
+			data.DELETE("/schemas/:schema", handlers.DropSchema)
+			data.POST("/tables/:schema", handlers.CreateTable)
+			data.POST("/tables/:schema/:table/constraints", handlers.AddConstraint)
 		}
 
 		// Query execution

@@ -1050,3 +1050,313 @@ func DropTable(c *gin.Context) {
 		"message": fmt.Sprintf("Table %s.%s dropped successfully", schema, table),
 	})
 }
+
+func CreateSchema(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if !isValidIdentifier(req.Name) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid schema name"})
+		return
+	}
+
+	query := fmt.Sprintf("CREATE SCHEMA %s", quoteIdentifier(req.Name))
+	_, err := pool.Exec(ctx, query)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Schema %s created successfully", req.Name),
+	})
+}
+
+func DropSchema(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	schema := c.Param("schema")
+	if !isValidIdentifier(schema) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid schema name"})
+		return
+	}
+
+	var req struct {
+		Cascade bool `json:"cascade"`
+	}
+	c.ShouldBindJSON(&req)
+
+	query := fmt.Sprintf("DROP SCHEMA %s", quoteIdentifier(schema))
+	if req.Cascade {
+		query += " CASCADE"
+	}
+
+	_, err := pool.Exec(ctx, query)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Schema %s dropped successfully", schema),
+	})
+}
+
+func CreateTable(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	schema := c.Param("schema")
+	if !isValidIdentifier(schema) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid schema name"})
+		return
+	}
+
+	type ColumnDef struct {
+		Name       string  `json:"name"`
+		Type       string  `json:"type"`
+		Nullable   bool    `json:"nullable"`
+		Default    *string `json:"default"`
+		PrimaryKey bool    `json:"primaryKey"`
+	}
+
+	var req struct {
+		Name    string      `json:"name"`
+		Columns []ColumnDef `json:"columns"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if !isValidIdentifier(req.Name) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid table name"})
+		return
+	}
+
+	if len(req.Columns) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one column is required"})
+		return
+	}
+
+	var colDefs []string
+	var pkCols []string
+
+	for _, col := range req.Columns {
+		if !isValidIdentifier(col.Name) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid column name: %s", col.Name)})
+			return
+		}
+
+		def := fmt.Sprintf("%s %s", quoteIdentifier(col.Name), col.Type)
+		if !col.Nullable {
+			def += " NOT NULL"
+		}
+		if col.Default != nil && *col.Default != "" {
+			def += " DEFAULT " + *col.Default
+		}
+		colDefs = append(colDefs, def)
+
+		if col.PrimaryKey {
+			pkCols = append(pkCols, quoteIdentifier(col.Name))
+		}
+	}
+
+	if len(pkCols) > 0 {
+		colDefs = append(colDefs, fmt.Sprintf("PRIMARY KEY (%s)", strings.Join(pkCols, ", ")))
+	}
+
+	query := fmt.Sprintf("CREATE TABLE %s.%s (\n  %s\n)",
+		quoteIdentifier(schema),
+		quoteIdentifier(req.Name),
+		strings.Join(colDefs, ",\n  "))
+
+	_, err := pool.Exec(ctx, query)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Table %s.%s created successfully", schema, req.Name),
+	})
+}
+
+func AddConstraint(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	schema := c.Param("schema")
+	table := c.Param("table")
+
+	if !isValidIdentifier(schema) || !isValidIdentifier(table) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid schema or table name"})
+		return
+	}
+
+	var req struct {
+		Type       string   `json:"type"`
+		Name       string   `json:"name"`
+		Columns    []string `json:"columns"`
+		RefSchema  string   `json:"refSchema"`
+		RefTable   string   `json:"refTable"`
+		RefColumns []string `json:"refColumns"`
+		OnDelete   string   `json:"onDelete"`
+		OnUpdate   string   `json:"onUpdate"`
+		Expression string   `json:"expression"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Validate columns
+	for _, col := range req.Columns {
+		if !isValidIdentifier(col) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid column name: %s", col)})
+			return
+		}
+	}
+
+	// Auto-generate constraint name if not provided
+	constraintName := req.Name
+	if constraintName == "" {
+		constraintName = fmt.Sprintf("%s_%s_%s", table, req.Type, strings.Join(req.Columns, "_"))
+	}
+	if !isValidIdentifier(constraintName) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid constraint name"})
+		return
+	}
+
+	var ddl string
+	qualifiedTable := fmt.Sprintf("%s.%s", quoteIdentifier(schema), quoteIdentifier(table))
+
+	switch strings.ToLower(req.Type) {
+	case "fk":
+		if len(req.Columns) == 0 || req.RefTable == "" || len(req.RefColumns) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "FK constraint requires columns, refTable, and refColumns"})
+			return
+		}
+		if !isValidIdentifier(req.RefTable) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid reference table name"})
+			return
+		}
+		for _, col := range req.RefColumns {
+			if !isValidIdentifier(col) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid reference column name: %s", col)})
+				return
+			}
+		}
+
+		refSchemaPrefix := ""
+		if req.RefSchema != "" {
+			if !isValidIdentifier(req.RefSchema) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid reference schema name"})
+				return
+			}
+			refSchemaPrefix = quoteIdentifier(req.RefSchema) + "."
+		}
+
+		quotedCols := make([]string, len(req.Columns))
+		for i, col := range req.Columns {
+			quotedCols[i] = quoteIdentifier(col)
+		}
+		quotedRefCols := make([]string, len(req.RefColumns))
+		for i, col := range req.RefColumns {
+			quotedRefCols[i] = quoteIdentifier(col)
+		}
+
+		ddl = fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s%s(%s)",
+			qualifiedTable,
+			quoteIdentifier(constraintName),
+			strings.Join(quotedCols, ", "),
+			refSchemaPrefix,
+			quoteIdentifier(req.RefTable),
+			strings.Join(quotedRefCols, ", "))
+
+		if req.OnDelete != "" {
+			ddl += " ON DELETE " + req.OnDelete
+		}
+		if req.OnUpdate != "" {
+			ddl += " ON UPDATE " + req.OnUpdate
+		}
+
+	case "unique":
+		if len(req.Columns) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "UNIQUE constraint requires at least one column"})
+			return
+		}
+
+		quotedCols := make([]string, len(req.Columns))
+		for i, col := range req.Columns {
+			quotedCols[i] = quoteIdentifier(col)
+		}
+
+		ddl = fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (%s)",
+			qualifiedTable,
+			quoteIdentifier(constraintName),
+			strings.Join(quotedCols, ", "))
+
+	case "check":
+		if req.Expression == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "CHECK constraint requires an expression"})
+			return
+		}
+
+		ddl = fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s CHECK (%s)",
+			qualifiedTable,
+			quoteIdentifier(constraintName),
+			req.Expression)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid constraint type. Must be 'fk', 'unique', or 'check'"})
+		return
+	}
+
+	_, err := pool.Exec(ctx, ddl)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Constraint %s added to %s.%s", constraintName, schema, table),
+	})
+}

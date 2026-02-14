@@ -218,6 +218,43 @@ export const dataApi = {
 		fetchAPI<{ success: boolean; message: string }>(`/data/${connId}/tables/${schema}/${table}`, {
 			method: 'DELETE',
 			body: JSON.stringify({ cascade: cascade ?? false })
+		}),
+
+	createSchema: (connId: string, name: string) =>
+		fetchAPI<{ success: boolean; message: string }>(`/data/${connId}/schemas`, {
+			method: 'POST',
+			body: JSON.stringify({ name })
+		}),
+
+	dropSchema: (connId: string, schema: string, cascade?: boolean) =>
+		fetchAPI<{ success: boolean; message: string }>(`/data/${connId}/schemas/${schema}`, {
+			method: 'DELETE',
+			body: JSON.stringify({ cascade: cascade ?? false })
+		}),
+
+	createTable: (connId: string, schema: string, definition: {
+		name: string;
+		columns: { name: string; type: string; nullable: boolean; default?: string; primaryKey: boolean }[];
+	}) =>
+		fetchAPI<{ success: boolean; message: string }>(`/data/${connId}/tables/${schema}`, {
+			method: 'POST',
+			body: JSON.stringify(definition)
+		}),
+
+	addConstraint: (connId: string, schema: string, table: string, constraint: {
+		type: 'fk' | 'unique' | 'check';
+		name?: string;
+		columns?: string[];
+		refSchema?: string;
+		refTable?: string;
+		refColumns?: string[];
+		onDelete?: string;
+		onUpdate?: string;
+		expression?: string;
+	}) =>
+		fetchAPI<{ success: boolean; message: string }>(`/data/${connId}/tables/${schema}/${table}/constraints`, {
+			method: 'POST',
+			body: JSON.stringify(constraint)
 		})
 };
 

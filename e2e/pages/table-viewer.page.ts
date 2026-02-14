@@ -122,6 +122,39 @@ export class TableViewerPage extends BasePage {
     return this.page.locator('.fk-preview, [class*="fk-preview"], .preview-popup');
   }
 
+  // Data Popup (JSON/XML)
+  get dataPopup(): Locator {
+    return this.page.locator('.data-popup');
+  }
+
+  get dataPopupBackdrop(): Locator {
+    return this.page.locator('.popup-backdrop');
+  }
+
+  get dataPopupColumnName(): Locator {
+    return this.dataPopup.locator('.column-name');
+  }
+
+  get dataPopupDataType(): Locator {
+    return this.dataPopup.locator('.data-type');
+  }
+
+  get dataPopupContent(): Locator {
+    return this.dataPopup.locator('.popup-content pre');
+  }
+
+  get dataPopupCopyButton(): Locator {
+    return this.dataPopup.locator('.popup-btn[title="Copy to clipboard"]');
+  }
+
+  get dataPopupCloseButton(): Locator {
+    return this.dataPopup.locator('.popup-btn[title="Close (Esc)"]');
+  }
+
+  getDataCell(row: number): Locator {
+    return this.getRow(row).locator('td.data-column');
+  }
+
   // Context menu - be specific to avoid matching backdrop
   get contextMenu(): Locator {
     return this.page.locator('.context-menu:not(.context-menu-backdrop)');
@@ -416,5 +449,29 @@ export class TableViewerPage extends BasePage {
 
   async expectContextMenuHidden(): Promise<void> {
     await expect(this.contextMenu).not.toBeVisible();
+  }
+
+  // Data Popup assertions
+  async expectDataPopupVisible(): Promise<void> {
+    await expect(this.dataPopup).toBeVisible({ timeout: 3000 });
+  }
+
+  async expectDataPopupHidden(): Promise<void> {
+    await expect(this.dataPopup).not.toBeVisible();
+  }
+
+  async closeDataPopupViaEscape(): Promise<void> {
+    await this.page.keyboard.press('Escape');
+    await this.expectDataPopupHidden();
+  }
+
+  async closeDataPopupViaBackdrop(): Promise<void> {
+    await this.dataPopupBackdrop.click({ position: { x: 5, y: 5 } });
+    await this.expectDataPopupHidden();
+  }
+
+  async clickDataCell(row: number): Promise<void> {
+    const cell = this.getDataCell(row);
+    await cell.first().click();
   }
 }

@@ -393,4 +393,141 @@ export class SidebarPage extends BasePage {
     await this.cancelFilterButton.click();
     await this.expectFilterModalHidden();
   }
+
+  // ── Create Schema modal ──
+  get createSchemaButton(): Locator {
+    return this.page.locator('[data-testid="btn-create-schema"]');
+  }
+
+  get createSchemaModal(): Locator {
+    return this.page.locator('[data-testid="create-schema-modal"]');
+  }
+
+  get createSchemaNameInput(): Locator {
+    return this.page.locator('[data-testid="input-schema-name"]');
+  }
+
+  get confirmCreateSchemaButton(): Locator {
+    return this.page.locator('[data-testid="btn-confirm-create-schema"]');
+  }
+
+  async createSchema(name: string): Promise<void> {
+    await this.createSchemaButton.click();
+    await expect(this.createSchemaModal).toBeVisible();
+    await this.createSchemaNameInput.fill(name);
+    await this.confirmCreateSchemaButton.click();
+    await expect(this.createSchemaModal).not.toBeVisible({ timeout: 10000 });
+  }
+
+  // ── Drop Schema modal ──
+  get dropSchemaModal(): Locator {
+    return this.page.locator('[data-testid="drop-schema-modal"]');
+  }
+
+  get dropSchemaCascadeCheckbox(): Locator {
+    return this.page.locator('[data-testid="checkbox-cascade"]');
+  }
+
+  get confirmDropSchemaButton(): Locator {
+    return this.page.locator('[data-testid="btn-confirm-drop-schema"]');
+  }
+
+  async dropSchemaViaContextMenu(schemaName: string, cascade: boolean = false): Promise<void> {
+    await this.rightClickSchema(schemaName);
+    await this.clickContextMenuItem('Drop Schema');
+    await expect(this.dropSchemaModal).toBeVisible();
+    if (cascade) {
+      await this.dropSchemaCascadeCheckbox.check();
+    }
+    await this.confirmDropSchemaButton.click();
+    await expect(this.dropSchemaModal).not.toBeVisible({ timeout: 10000 });
+  }
+
+  // ── Create Table modal ──
+  get createTableModal(): Locator {
+    return this.page.locator('[data-testid="create-table-modal"]');
+  }
+
+  get createTableNameInput(): Locator {
+    return this.page.locator('[data-testid="input-table-name"]');
+  }
+
+  get addColumnButton(): Locator {
+    return this.page.locator('[data-testid="btn-add-column"]');
+  }
+
+  get confirmCreateTableButton(): Locator {
+    return this.page.locator('[data-testid="btn-confirm-create-table"]');
+  }
+
+  getColumnNameInput(index: number): Locator {
+    return this.page.locator(`[data-testid="input-col-name-${index}"]`);
+  }
+
+  getColumnTypeSelect(index: number): Locator {
+    return this.page.locator(`[data-testid="select-col-type-${index}"]`);
+  }
+
+  getColumnPkCheckbox(index: number): Locator {
+    return this.page.locator(`[data-testid="checkbox-pk-${index}"]`);
+  }
+
+  async createTableViaContextMenu(schemaName: string, tableName: string, columns: { name: string; type: string; pk?: boolean }[]): Promise<void> {
+    await this.rightClickSchema(schemaName);
+    await this.clickContextMenuItem('Create Table');
+    await expect(this.createTableModal).toBeVisible();
+    await this.createTableNameInput.fill(tableName);
+
+    for (let i = 0; i < columns.length; i++) {
+      if (i > 0) await this.addColumnButton.click();
+      await this.getColumnNameInput(i).fill(columns[i].name);
+      await this.getColumnTypeSelect(i).selectOption(columns[i].type);
+      if (columns[i].pk) await this.getColumnPkCheckbox(i).check();
+    }
+
+    await this.confirmCreateTableButton.click();
+    await expect(this.createTableModal).not.toBeVisible({ timeout: 10000 });
+  }
+
+  // ── Add Constraint modal ──
+  get addConstraintModal(): Locator {
+    return this.page.locator('[data-testid="add-constraint-modal"]');
+  }
+
+  get constraintTypeSelect(): Locator {
+    return this.page.locator('[data-testid="select-constraint-type"]');
+  }
+
+  get constraintNameInput(): Locator {
+    return this.page.locator('[data-testid="input-constraint-name"]');
+  }
+
+  get constraintColumnsInput(): Locator {
+    return this.page.locator('[data-testid="input-constraint-columns"]');
+  }
+
+  get confirmAddConstraintButton(): Locator {
+    return this.page.locator('[data-testid="btn-confirm-add-constraint"]');
+  }
+
+  async addConstraintViaContextMenu(tableName: string, opts: {
+    type: 'unique' | 'fk' | 'check';
+    name?: string;
+    columns?: string;
+    expression?: string;
+  }): Promise<void> {
+    await this.rightClickTable(tableName);
+    await this.clickContextMenuItem('Add Constraint');
+    await expect(this.addConstraintModal).toBeVisible();
+
+    await this.constraintTypeSelect.selectOption(opts.type);
+    if (opts.name) await this.constraintNameInput.fill(opts.name);
+    if (opts.columns) await this.constraintColumnsInput.fill(opts.columns);
+    if (opts.expression) {
+      await this.page.locator('[data-testid="input-check-expression"]').fill(opts.expression);
+    }
+
+    await this.confirmAddConstraintButton.click();
+    await expect(this.addConstraintModal).not.toBeVisible({ timeout: 10000 });
+  }
 }

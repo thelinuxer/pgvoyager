@@ -384,6 +384,228 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 			clearSearch();
 		}
 	}
+
+	// ── Create Schema modal ──
+	let createSchemaModal = $state<{ name: string } | null>(null);
+	let isCreatingSchema = $state(false);
+	let createSchemaError = $state<string | null>(null);
+
+	function openCreateSchemaModal() {
+		createSchemaModal = { name: '' };
+		createSchemaError = null;
+	}
+
+	function closeCreateSchemaModal() {
+		createSchemaModal = null;
+		createSchemaError = null;
+	}
+
+	async function confirmCreateSchema() {
+		if (!createSchemaModal || !$activeConnectionId) return;
+		if (!createSchemaModal.name.trim()) {
+			createSchemaError = 'Schema name is required';
+			return;
+		}
+
+		isCreatingSchema = true;
+		createSchemaError = null;
+
+		try {
+			await dataApi.createSchema($activeConnectionId, createSchemaModal.name.trim());
+			closeCreateSchemaModal();
+			refreshSchema();
+		} catch (e) {
+			createSchemaError = e instanceof Error ? e.message : 'Failed to create schema';
+		} finally {
+			isCreatingSchema = false;
+		}
+	}
+
+	// ── Drop Schema modal ──
+	let dropSchemaModal = $state<{ schema: string; cascade: boolean } | null>(null);
+	let isDroppingSchema = $state(false);
+	let dropSchemaError = $state<string | null>(null);
+
+	function handleDropSchemaClick(node: SchemaTreeNode) {
+		dropSchemaModal = { schema: node.name, cascade: false };
+		dropSchemaError = null;
+		closeContextMenu();
+	}
+
+	function closeDropSchemaModal() {
+		dropSchemaModal = null;
+		dropSchemaError = null;
+	}
+
+	async function confirmDropSchema() {
+		if (!dropSchemaModal || !$activeConnectionId) return;
+
+		isDroppingSchema = true;
+		dropSchemaError = null;
+
+		try {
+			await dataApi.dropSchema($activeConnectionId, dropSchemaModal.schema, dropSchemaModal.cascade);
+			closeDropSchemaModal();
+			refreshSchema();
+		} catch (e) {
+			dropSchemaError = e instanceof Error ? e.message : 'Failed to drop schema';
+		} finally {
+			isDroppingSchema = false;
+		}
+	}
+
+	// ── Create Table modal ──
+	interface CreateTableColumn {
+		name: string;
+		type: string;
+		nullable: boolean;
+		defaultVal: string;
+		primaryKey: boolean;
+	}
+
+	const PG_TYPES = [
+		'INTEGER', 'BIGINT', 'SERIAL', 'TEXT', 'VARCHAR(255)', 'BOOLEAN',
+		'NUMERIC(10,2)', 'DATE', 'TIMESTAMP', 'TIMESTAMPTZ', 'JSON', 'JSONB', 'XML', 'UUID'
+	];
+
+	let createTableModal = $state<{ schema: string; name: string; columns: CreateTableColumn[] } | null>(null);
+	let isCreatingTable = $state(false);
+	let createTableError = $state<string | null>(null);
+
+	function handleCreateTableClick(node: SchemaTreeNode) {
+		createTableModal = {
+			schema: node.name,
+			name: '',
+			columns: [{ name: '', type: 'INTEGER', nullable: true, defaultVal: '', primaryKey: false }]
+		};
+		createTableError = null;
+		closeContextMenu();
+	}
+
+	function closeCreateTableModal() {
+		createTableModal = null;
+		createTableError = null;
+	}
+
+	function addTableColumn() {
+		if (!createTableModal) return;
+		createTableModal.columns = [...createTableModal.columns, { name: '', type: 'INTEGER', nullable: true, defaultVal: '', primaryKey: false }];
+	}
+
+	function removeTableColumn(index: number) {
+		if (!createTableModal || createTableModal.columns.length <= 1) return;
+		createTableModal.columns = createTableModal.columns.filter((_, i) => i !== index);
+	}
+
+	async function confirmCreateTable() {
+		if (!createTableModal || !$activeConnectionId) return;
+		if (!createTableModal.name.trim()) {
+			createTableError = 'Table name is required';
+			return;
+		}
+		if (createTableModal.columns.some(c => !c.name.trim())) {
+			createTableError = 'All column names are required';
+			return;
+		}
+
+		isCreatingTable = true;
+		createTableError = null;
+
+		try {
+			await dataApi.createTable($activeConnectionId, createTableModal.schema, {
+				name: createTableModal.name.trim(),
+				columns: createTableModal.columns.map(c => ({
+					name: c.name.trim(),
+					type: c.type,
+					nullable: c.nullable,
+					default: c.defaultVal || undefined,
+					primaryKey: c.primaryKey
+				}))
+			});
+			closeCreateTableModal();
+			refreshSchema();
+		} catch (e) {
+			createTableError = e instanceof Error ? e.message : 'Failed to create table';
+		} finally {
+			isCreatingTable = false;
+		}
+	}
+
+	// ── Add Constraint modal ──
+	let addConstraintModal = $state<{
+		schema: string;
+		table: string;
+		type: 'fk' | 'unique' | 'check';
+		name: string;
+		columns: string;
+		refSchema: string;
+		refTable: string;
+		refColumns: string;
+		onDelete: string;
+		onUpdate: string;
+		expression: string;
+	} | null>(null);
+	let isAddingConstraint = $state(false);
+	let addConstraintError = $state<string | null>(null);
+
+	function handleAddConstraintClick(node: SchemaTreeNode) {
+		if (!node.schema) return;
+		addConstraintModal = {
+			schema: node.schema,
+			table: node.name,
+			type: 'unique',
+			name: '',
+			columns: '',
+			refSchema: '',
+			refTable: '',
+			refColumns: '',
+			onDelete: '',
+			onUpdate: '',
+			expression: ''
+		};
+		addConstraintError = null;
+		closeContextMenu();
+	}
+
+	function closeAddConstraintModal() {
+		addConstraintModal = null;
+		addConstraintError = null;
+	}
+
+	async function confirmAddConstraint() {
+		if (!addConstraintModal || !$activeConnectionId) return;
+
+		isAddingConstraint = true;
+		addConstraintError = null;
+
+		try {
+			const cols = addConstraintModal.columns.split(',').map(c => c.trim()).filter(Boolean);
+			const refCols = addConstraintModal.refColumns.split(',').map(c => c.trim()).filter(Boolean);
+
+			await dataApi.addConstraint(
+				$activeConnectionId,
+				addConstraintModal.schema,
+				addConstraintModal.table,
+				{
+					type: addConstraintModal.type,
+					name: addConstraintModal.name || undefined,
+					columns: cols.length > 0 ? cols : undefined,
+					refSchema: addConstraintModal.refSchema || undefined,
+					refTable: addConstraintModal.refTable || undefined,
+					refColumns: refCols.length > 0 ? refCols : undefined,
+					onDelete: addConstraintModal.onDelete || undefined,
+					onUpdate: addConstraintModal.onUpdate || undefined,
+					expression: addConstraintModal.expression || undefined
+				}
+			);
+			closeAddConstraintModal();
+			refreshSchema();
+		} catch (e) {
+			addConstraintError = e instanceof Error ? e.message : 'Failed to add constraint';
+		} finally {
+			isAddingConstraint = false;
+		}
+	}
 </script>
 
 {#snippet getIcon(node: SchemaTreeNode)}
@@ -414,6 +636,14 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 		</span>
 		<div class="sidebar-actions">
 			{#if $activeConnection}
+				<button
+					class="btn btn-sm btn-ghost"
+					onclick={openCreateSchemaModal}
+					title="Create Schema"
+					data-testid="btn-create-schema"
+				>
+					<Icon name="plus" size={14} />
+				</button>
 				<button
 					class="btn btn-sm btn-ghost"
 					onclick={refreshSchema}
@@ -533,11 +763,19 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 				Copy name ("schema"."table")
 			</button>
 			<div class="context-menu-separator"></div>
+			<button class="context-menu-item" onclick={() => handleAddConstraintClick(menuNode)}>
+				<Icon name="lock" size={14} />
+				Add Constraint...
+			</button>
 			<button class="context-menu-item context-menu-item-danger" onclick={() => handleDropTableClick(menuNode)}>
 				<Icon name="trash" size={14} />
 				Drop table...
 			</button>
 		{:else if contextMenu.menuType === 'schema'}
+			<button class="context-menu-item" onclick={() => handleCreateTableClick(menuNode)}>
+				<Icon name="table" size={14} />
+				Create Table...
+			</button>
 			<button class="context-menu-item" onclick={() => handleViewSchemaERD(menuNode)}>
 				<Icon name="share-2" size={14} />
 				View Schema ERD
@@ -546,6 +784,11 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 			<button class="context-menu-item" onclick={() => { navigator.clipboard.writeText(menuNode.name); closeContextMenu(); }}>
 				<Icon name="copy" size={14} />
 				Copy schema name
+			</button>
+			<div class="context-menu-separator"></div>
+			<button class="context-menu-item context-menu-item-danger" onclick={() => handleDropSchemaClick(menuNode)}>
+				<Icon name="trash" size={14} />
+				Drop Schema...
 			</button>
 		{/if}
 	</div>
@@ -710,6 +953,286 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 			<button class="btn btn-primary btn-sm" onclick={applyFilter}>
 				<Icon name="play" size={14} />
 				Open in Query Editor
+			</button>
+		</div>
+	</div>
+{/if}
+
+<!-- Create Schema Modal -->
+{#if createSchemaModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="modal-backdrop" onclick={closeCreateSchemaModal}></div>
+	<div class="modal" data-testid="create-schema-modal">
+		<div class="modal-header modal-header-primary">
+			<Icon name="folder" size={20} />
+			<h3>Create Schema</h3>
+		</div>
+		<div class="modal-body">
+			<label class="form-field">
+				<span>Schema Name</span>
+				<input
+					type="text"
+					bind:value={createSchemaModal.name}
+					placeholder="new_schema"
+					data-testid="input-schema-name"
+					onkeydown={(e) => { if (e.key === 'Enter') confirmCreateSchema(); }}
+				/>
+			</label>
+
+			{#if createSchemaError}
+				<div class="modal-error">
+					<Icon name="alert-circle" size={14} />
+					{createSchemaError}
+				</div>
+			{/if}
+		</div>
+		<div class="modal-footer">
+			<button class="btn btn-secondary btn-sm" onclick={closeCreateSchemaModal} disabled={isCreatingSchema}>
+				Cancel
+			</button>
+			<button class="btn btn-primary btn-sm" onclick={confirmCreateSchema} disabled={isCreatingSchema} data-testid="btn-confirm-create-schema">
+				{#if isCreatingSchema}
+					<Icon name="refresh" size={14} class="spinning" />
+					Creating...
+				{:else}
+					Create Schema
+				{/if}
+			</button>
+		</div>
+	</div>
+{/if}
+
+<!-- Drop Schema Modal -->
+{#if dropSchemaModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="modal-backdrop" onclick={closeDropSchemaModal}></div>
+	<div class="modal" data-testid="drop-schema-modal">
+		<div class="modal-header">
+			<Icon name="alert-circle" size={20} />
+			<h3>Drop Schema</h3>
+		</div>
+		<div class="modal-body">
+			<p>Are you sure you want to drop the schema <strong>"{dropSchemaModal.schema}"</strong>?</p>
+			<p class="warning-text">This action cannot be undone!</p>
+
+			{#if dropSchemaError}
+				<div class="modal-error">
+					<Icon name="alert-circle" size={14} />
+					{dropSchemaError}
+				</div>
+			{/if}
+
+			<label class="cascade-option">
+				<input type="checkbox" bind:checked={dropSchemaModal.cascade} data-testid="checkbox-cascade" />
+				<span>CASCADE (also drop all contained objects)</span>
+			</label>
+		</div>
+		<div class="modal-footer">
+			<button class="btn btn-secondary btn-sm" onclick={closeDropSchemaModal} disabled={isDroppingSchema}>
+				Cancel
+			</button>
+			<button class="btn btn-danger btn-sm" onclick={confirmDropSchema} disabled={isDroppingSchema} data-testid="btn-confirm-drop-schema">
+				{#if isDroppingSchema}
+					<Icon name="refresh" size={14} class="spinning" />
+					Dropping...
+				{:else}
+					Drop Schema
+				{/if}
+			</button>
+		</div>
+	</div>
+{/if}
+
+<!-- Create Table Modal -->
+{#if createTableModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="modal-backdrop" onclick={closeCreateTableModal}></div>
+	<div class="modal create-table-modal" data-testid="create-table-modal">
+		<div class="modal-header modal-header-primary">
+			<Icon name="table" size={20} />
+			<h3>Create Table</h3>
+		</div>
+		<div class="modal-body">
+			<p class="filter-table-name">Schema: {createTableModal.schema}</p>
+
+			<label class="form-field">
+				<span>Table Name</span>
+				<input
+					type="text"
+					bind:value={createTableModal.name}
+					placeholder="new_table"
+					data-testid="input-table-name"
+				/>
+			</label>
+
+			<div class="filter-section" style="margin-top: 12px">
+				<div class="filter-section-header">
+					<span class="filter-section-title">Columns</span>
+				</div>
+
+				{#each createTableModal.columns as col, index}
+					<div class="table-col-row">
+						<input
+							type="text"
+							bind:value={col.name}
+							placeholder="column_name"
+							class="col-name-input"
+							data-testid="input-col-name-{index}"
+						/>
+						<select bind:value={col.type} class="col-type-select" data-testid="select-col-type-{index}">
+							{#each PG_TYPES as pgType}
+								<option value={pgType}>{pgType}</option>
+							{/each}
+						</select>
+						<label class="col-option" title="Nullable">
+							<input type="checkbox" bind:checked={col.nullable} />
+							<span>NULL</span>
+						</label>
+						<label class="col-option" title="Primary Key">
+							<input type="checkbox" bind:checked={col.primaryKey} data-testid="checkbox-pk-{index}" />
+							<span>PK</span>
+						</label>
+						<button
+							class="btn-icon"
+							onclick={() => removeTableColumn(index)}
+							disabled={createTableModal.columns.length <= 1}
+							title="Remove column"
+						>
+							<Icon name="x" size={14} />
+						</button>
+					</div>
+				{/each}
+
+				<button class="btn btn-ghost btn-sm add-btn" onclick={addTableColumn} data-testid="btn-add-column">
+					<Icon name="plus" size={14} />
+					Add column
+				</button>
+			</div>
+
+			{#if createTableError}
+				<div class="modal-error">
+					<Icon name="alert-circle" size={14} />
+					{createTableError}
+				</div>
+			{/if}
+		</div>
+		<div class="modal-footer">
+			<button class="btn btn-secondary btn-sm" onclick={closeCreateTableModal} disabled={isCreatingTable}>
+				Cancel
+			</button>
+			<button class="btn btn-primary btn-sm" onclick={confirmCreateTable} disabled={isCreatingTable} data-testid="btn-confirm-create-table">
+				{#if isCreatingTable}
+					<Icon name="refresh" size={14} class="spinning" />
+					Creating...
+				{:else}
+					Create Table
+				{/if}
+			</button>
+		</div>
+	</div>
+{/if}
+
+<!-- Add Constraint Modal -->
+{#if addConstraintModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="modal-backdrop" onclick={closeAddConstraintModal}></div>
+	<div class="modal constraint-modal" data-testid="add-constraint-modal">
+		<div class="modal-header modal-header-primary">
+			<Icon name="lock" size={20} />
+			<h3>Add Constraint</h3>
+		</div>
+		<div class="modal-body">
+			<p class="filter-table-name">"{addConstraintModal.schema}"."{addConstraintModal.table}"</p>
+
+			<div class="form-grid">
+				<label class="form-field">
+					<span>Constraint Type</span>
+					<select bind:value={addConstraintModal.type} data-testid="select-constraint-type">
+						<option value="unique">UNIQUE</option>
+						<option value="fk">FOREIGN KEY</option>
+						<option value="check">CHECK</option>
+					</select>
+				</label>
+
+				<label class="form-field">
+					<span>Constraint Name (optional)</span>
+					<input type="text" bind:value={addConstraintModal.name} placeholder="auto-generated" data-testid="input-constraint-name" />
+				</label>
+
+				{#if addConstraintModal.type !== 'check'}
+					<label class="form-field">
+						<span>Columns (comma-separated)</span>
+						<input type="text" bind:value={addConstraintModal.columns} placeholder="col1, col2" data-testid="input-constraint-columns" />
+					</label>
+				{/if}
+
+				{#if addConstraintModal.type === 'fk'}
+					<label class="form-field">
+						<span>Reference Schema (optional)</span>
+						<input type="text" bind:value={addConstraintModal.refSchema} placeholder="public" />
+					</label>
+					<label class="form-field">
+						<span>Reference Table</span>
+						<input type="text" bind:value={addConstraintModal.refTable} placeholder="referenced_table" data-testid="input-ref-table" />
+					</label>
+					<label class="form-field">
+						<span>Reference Columns</span>
+						<input type="text" bind:value={addConstraintModal.refColumns} placeholder="id" data-testid="input-ref-columns" />
+					</label>
+					<label class="form-field">
+						<span>ON DELETE</span>
+						<select bind:value={addConstraintModal.onDelete}>
+							<option value="">None</option>
+							<option value="CASCADE">CASCADE</option>
+							<option value="SET NULL">SET NULL</option>
+							<option value="SET DEFAULT">SET DEFAULT</option>
+							<option value="RESTRICT">RESTRICT</option>
+							<option value="NO ACTION">NO ACTION</option>
+						</select>
+					</label>
+					<label class="form-field">
+						<span>ON UPDATE</span>
+						<select bind:value={addConstraintModal.onUpdate}>
+							<option value="">None</option>
+							<option value="CASCADE">CASCADE</option>
+							<option value="SET NULL">SET NULL</option>
+							<option value="SET DEFAULT">SET DEFAULT</option>
+							<option value="RESTRICT">RESTRICT</option>
+							<option value="NO ACTION">NO ACTION</option>
+						</select>
+					</label>
+				{/if}
+
+				{#if addConstraintModal.type === 'check'}
+					<label class="form-field">
+						<span>CHECK Expression</span>
+						<input type="text" bind:value={addConstraintModal.expression} placeholder="price > 0" data-testid="input-check-expression" />
+					</label>
+				{/if}
+			</div>
+
+			{#if addConstraintError}
+				<div class="modal-error">
+					<Icon name="alert-circle" size={14} />
+					{addConstraintError}
+				</div>
+			{/if}
+		</div>
+		<div class="modal-footer">
+			<button class="btn btn-secondary btn-sm" onclick={closeAddConstraintModal} disabled={isAddingConstraint}>
+				Cancel
+			</button>
+			<button class="btn btn-primary btn-sm" onclick={confirmAddConstraint} disabled={isAddingConstraint} data-testid="btn-confirm-add-constraint">
+				{#if isAddingConstraint}
+					<Icon name="refresh" size={14} class="spinning" />
+					Adding...
+				{:else}
+					Add Constraint
+				{/if}
 			</button>
 		</div>
 	</div>
@@ -1299,5 +1822,129 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 
 	.flex-1 {
 		flex: 1;
+	}
+
+	/* Primary modal header (non-destructive actions) */
+	.modal-header-primary {
+		color: var(--color-primary);
+	}
+
+	/* Form fields */
+	.form-field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin-bottom: 12px;
+	}
+
+	.form-field span {
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--color-text-muted);
+	}
+
+	.form-field input,
+	.form-field select {
+		padding: 8px 10px;
+		font-size: 13px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-bg-secondary);
+		color: var(--color-text);
+	}
+
+	.form-field input:focus,
+	.form-field select:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.form-field input::placeholder {
+		color: var(--color-text-dim);
+	}
+
+	.form-grid {
+		display: flex;
+		flex-direction: column;
+	}
+
+	/* Create Table Modal */
+	.create-table-modal {
+		width: 600px;
+		max-height: 80vh;
+	}
+
+	.create-table-modal .modal-body {
+		overflow-y: auto;
+		max-height: 60vh;
+	}
+
+	.table-col-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 6px;
+	}
+
+	.col-name-input {
+		flex: 1;
+		min-width: 120px;
+		padding: 6px 8px;
+		font-size: 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-bg-secondary);
+		color: var(--color-text);
+	}
+
+	.col-name-input:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.col-name-input::placeholder {
+		color: var(--color-text-dim);
+	}
+
+	.col-type-select {
+		width: 140px;
+		padding: 6px 8px;
+		font-size: 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-bg-secondary);
+		color: var(--color-text);
+	}
+
+	.col-type-select:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.col-option {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+		font-size: 11px;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.col-option input {
+		width: 14px;
+		height: 14px;
+		accent-color: var(--color-primary);
+	}
+
+	/* Add Constraint Modal */
+	.constraint-modal {
+		width: 480px;
+		max-height: 80vh;
+	}
+
+	.constraint-modal .modal-body {
+		overflow-y: auto;
+		max-height: 60vh;
 	}
 </style>

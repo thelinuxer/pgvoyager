@@ -122,6 +122,20 @@ INSERT INTO test_schema.order_items (order_id, product_id, quantity, unit_price)
   (5, 1, 1, 29.99),
   (6, 4, 3, 149.99);
 
+-- Metadata table with JSON/JSONB/XML columns for data popup tests
+CREATE TABLE test_schema.metadata (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  config JSONB NOT NULL,
+  raw_json JSON,
+  xml_data XML
+);
+
+INSERT INTO test_schema.metadata (name, config, raw_json, xml_data) VALUES
+  ('server_config', '{"host": "db.example.com", "port": 5432, "ssl": true, "tags": ["production", "primary"]}', '{"version": "1.0", "active": true}', '<server><name>primary</name><region>us-east-1</region><status>active</status></server>'),
+  ('app_settings', '{"theme": "dark", "language": "en", "notifications": {"email": true, "push": false}}', '{"debug": false}', '<config><app>pgvoyager</app><mode>production</mode></config>'),
+  ('user_prefs', '{"fontSize": 14, "autoSave": true, "recentFiles": ["schema.sql", "queries.sql"]}', null, null);
+
 -- Add comments for testing
 COMMENT ON TABLE test_schema.users IS 'User accounts for the e-commerce system';
 COMMENT ON COLUMN test_schema.users.email IS 'Unique email address for login';

@@ -217,6 +217,21 @@ input:focus, textarea:focus, select:focus {
 	color: var(--color-primary-hover);
 }
 
+.data-table .data-column {
+	color: var(--color-info);
+	cursor: pointer;
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.data-table .data-column:hover {
+	color: var(--color-info);
+	text-decoration: underline;
+	text-decoration-style: dotted;
+}
+
 .data-table .null-value {
 	color: var(--color-text-dim);
 	font-style: italic;

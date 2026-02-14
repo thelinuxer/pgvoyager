@@ -90,6 +90,7 @@
 	import ResizeHandle from './ResizeHandle.svelte';
 	import DataGrid from './DataGrid.svelte';
 	import FKPreviewPopup from './FKPreviewPopup.svelte';
+	import DataPopup from './DataPopup.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
 	import { dataApi } from '$lib/api/client';
 	import type { ColumnInfo, ForeignKeyPreview } from '$lib/types';
@@ -162,6 +163,10 @@
 	let fkPreviewLoading = $state(false);
 	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
 	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Data popup state (JSON/XML)
+	let dataPopup = $state<{ value: unknown; dataType: string; columnName: string } | null>(null);
+	let dataPopupPosition = $state({ x: 0, y: 0 });
 
 	// Derived: sorted rows
 	let sortedRows = $derived.by(() => {
@@ -559,6 +564,15 @@
 		fkPreviewLoading = false;
 	}
 
+	function handleDataClick(e: MouseEvent, col: ColumnInfo, value: unknown) {
+		dataPopupPosition = { x: e.clientX, y: e.clientY };
+		dataPopup = { value, dataType: col.dataType, columnName: col.name };
+	}
+
+	function closeDataPopup() {
+		dataPopup = null;
+	}
+
 	function formatCsvValue(value: unknown): string {
 		if (value === null || value === undefined) return '';
 		const str = typeof value === 'object' ? JSON.stringify(value) : String(value);
@@ -680,6 +694,7 @@
 						onFKClick={handleFKClick}
 						onFKHover={handleFKHover}
 						onFKLeave={handleFKLeave}
+						onDataClick={handleDataClick}
 					/>
 				</div>
 			{:else}
@@ -702,6 +717,17 @@
 		y={fkPreviewPosition.y}
 		onMouseEnter={handlePopupEnter}
 		onMouseLeave={handlePopupLeave}
+	/>
+{/if}
+
+{#if dataPopup}
+	<DataPopup
+		value={dataPopup.value}
+		dataType={dataPopup.dataType}
+		columnName={dataPopup.columnName}
+		x={dataPopupPosition.x}
+		y={dataPopupPosition.y}
+		onClose={closeDataPopup}
 	/>
 {/if}
 

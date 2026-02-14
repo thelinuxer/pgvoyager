@@ -18,6 +18,15 @@ import (
 
 var identifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
+// convertValue converts []byte values (e.g. XML columns) to string
+// so they aren't base64-encoded in JSON responses.
+func convertValue(v any) any {
+	if b, ok := v.([]byte); ok {
+		return string(b)
+	}
+	return v
+}
+
 func isValidIdentifier(s string) bool {
 	return identifierRegex.MatchString(s)
 }
@@ -296,7 +305,7 @@ func GetTableData(c *gin.Context) {
 
 		row := make(map[string]any)
 		for i, fd := range fieldDescs {
-			row[string(fd.Name)] = values[i]
+			row[string(fd.Name)] = convertValue(values[i])
 		}
 		data = append(data, row)
 	}
@@ -471,7 +480,7 @@ func GetForeignKeyPreview(c *gin.Context) {
 	fieldDescs := rows.FieldDescriptions()
 	row := make(map[string]any)
 	for i, fd := range fieldDescs {
-		row[string(fd.Name)] = values[i]
+		row[string(fd.Name)] = convertValue(values[i])
 	}
 
 	c.JSON(http.StatusOK, models.ForeignKeyPreview{
@@ -700,7 +709,7 @@ func ExecuteQuery(c *gin.Context) {
 
 		row := make(map[string]any)
 		for i, fd := range fieldDescs {
-			row[string(fd.Name)] = values[i]
+			row[string(fd.Name)] = convertValue(values[i])
 		}
 		data = append(data, row)
 	}

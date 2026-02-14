@@ -45,6 +45,9 @@
 		onFKHover?: (e: MouseEvent, col: ColumnInfo, value: unknown) => void;
 		onFKLeave?: () => void;
 
+		// Data popup handling (JSON/XML)
+		onDataClick?: (e: MouseEvent, col: ColumnInfo, value: unknown) => void;
+
 		// Loading state
 		isLoading?: boolean;
 	}
@@ -81,6 +84,7 @@
 		onFKClick,
 		onFKHover,
 		onFKLeave,
+		onDataClick,
 		isLoading = false
 	}: Props = $props();
 
@@ -97,15 +101,22 @@
 		return String(value);
 	}
 
+	function isDataColumn(dataType: string): boolean {
+		const lowerType = dataType.toLowerCase();
+		return lowerType === 'json' || lowerType === 'jsonb' || lowerType === 'xml';
+	}
+
 	function handleSort(column: string) {
 		if (onSort) {
 			onSort(column);
 		}
 	}
 
-	function handleCellClick(col: ColumnInfo, value: unknown) {
+	function handleCellClick(e: MouseEvent, col: ColumnInfo, value: unknown) {
 		if (!editMode && col.isForeignKey && onFKClick) {
 			onFKClick(col, value);
+		} else if (!editMode && isDataColumn(col.dataType) && onDataClick && value !== null) {
+			onDataClick(e, col, value);
 		}
 	}
 
@@ -201,10 +212,11 @@
 								<td
 									class:pk-column={col.isPrimaryKey}
 									class:fk-column={col.isForeignKey && row[col.name] !== null && !editMode}
+									class:data-column={isDataColumn(col.dataType) && row[col.name] !== null && !editMode}
 									class:null-value={row[col.name] === null}
 									class:editable={editMode && !col.isPrimaryKey}
 									class:editing={isEditing}
-									onclick={() => handleCellClick(col, row[col.name])}
+									onclick={(e) => handleCellClick(e, col, row[col.name])}
 									ondblclick={() => !col.isPrimaryKey && onCellDoubleClick?.(rowIndex, col.name, row[col.name])}
 									onmouseenter={(e) => handleCellHover(e, col, row[col.name])}
 									onmouseleave={handleCellLeave}

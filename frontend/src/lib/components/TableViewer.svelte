@@ -5,6 +5,7 @@
 	import { dataApi } from '$lib/api/client';
 	import type { Tab, TableDataResponse, ColumnInfo, ForeignKeyPreview, TableLocation } from '$lib/types';
 	import FKPreviewPopup from './FKPreviewPopup.svelte';
+	import DataPopup from './DataPopup.svelte';
 	import DataGrid from './DataGrid.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
 
@@ -43,6 +44,10 @@
 	let fkPreviewLoading = $state(false);
 	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
 	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Data popup state (JSON/XML)
+	let dataPopup = $state<{ value: unknown; dataType: string; columnName: string } | null>(null);
+	let dataPopupPosition = $state({ x: 0, y: 0 });
 
 	// Navigation state
 	let canGoBack = $derived(tabs.canNavigateBack(tab.id));
@@ -247,6 +252,15 @@
 		// Close popup when mouse leaves it
 		fkPreview = null;
 		fkPreviewLoading = false;
+	}
+
+	function handleDataClick(e: MouseEvent, col: ColumnInfo, value: unknown) {
+		dataPopupPosition = { x: e.clientX, y: e.clientY };
+		dataPopup = { value, dataType: col.dataType, columnName: col.name };
+	}
+
+	function closeDataPopup() {
+		dataPopup = null;
 	}
 
 	// CRUD functions
@@ -532,6 +546,7 @@
 				onFKClick={handleFKClick}
 				onFKHover={handleFKHover}
 				onFKLeave={handleFKLeave}
+				onDataClick={handleDataClick}
 				isLoading={isLoading}
 			/>
 		</div>
@@ -546,6 +561,17 @@
 		y={fkPreviewPosition.y}
 		onMouseEnter={handlePopupEnter}
 		onMouseLeave={handlePopupLeave}
+	/>
+{/if}
+
+{#if dataPopup}
+	<DataPopup
+		value={dataPopup.value}
+		dataType={dataPopup.dataType}
+		columnName={dataPopup.columnName}
+		x={dataPopupPosition.x}
+		y={dataPopupPosition.y}
+		onClose={closeDataPopup}
 	/>
 {/if}
 

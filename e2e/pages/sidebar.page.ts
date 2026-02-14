@@ -196,6 +196,8 @@ export class SidebarPage extends BasePage {
 
   async openNewQuery(): Promise<void> {
     await this.newQueryButton.click();
+    // Wait for the query editor to appear (CodeMirror mounts)
+    await this.page.locator('.cm-editor').waitFor({ state: 'visible', timeout: 10000 });
   }
 
   async openSavedQueries(): Promise<void> {
@@ -395,10 +397,6 @@ export class SidebarPage extends BasePage {
   }
 
   // ── Create Schema modal ──
-  get createSchemaButton(): Locator {
-    return this.page.locator('[data-testid="btn-create-schema"]');
-  }
-
   get createSchemaModal(): Locator {
     return this.page.locator('[data-testid="create-schema-modal"]');
   }
@@ -412,7 +410,11 @@ export class SidebarPage extends BasePage {
   }
 
   async createSchema(name: string): Promise<void> {
-    await this.createSchemaButton.click();
+    // Right-click any visible schema node to get the context menu
+    const schemaNode = this.page.locator('[data-node-type="schema"] .tree-item-button').first();
+    await schemaNode.click({ button: 'right' });
+    await expect(this.contextMenu).toBeVisible();
+    await this.clickContextMenuItem('Create Schema');
     await expect(this.createSchemaModal).toBeVisible();
     await this.createSchemaNameInput.fill(name);
     await this.confirmCreateSchemaButton.click();

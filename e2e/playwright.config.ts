@@ -33,8 +33,11 @@ export default defineConfig({
   // Fail the build on CI if you accidentally left test.only in the source code
   forbidOnly: isCI,
 
+  // Stop entire test run after 5 failures in CI to prevent cascade timeouts
+  maxFailures: isCI ? 5 : 0,
+
   // Retry on CI only
-  retries: isCI ? 2 : 0,
+  retries: isCI ? 1 : 0,
 
   // Use single worker to avoid multiple browser instances and connection spam
   workers: 1,

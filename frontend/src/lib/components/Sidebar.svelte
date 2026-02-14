@@ -638,14 +638,6 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 			{#if $activeConnection}
 				<button
 					class="btn btn-sm btn-ghost"
-					onclick={openCreateSchemaModal}
-					title="Create Schema"
-					data-testid="btn-create-schema"
-				>
-					<Icon name="plus" size={14} />
-				</button>
-				<button
-					class="btn btn-sm btn-ghost"
 					onclick={refreshSchema}
 					disabled={$isLoading}
 					title="Refresh Schema"
@@ -772,6 +764,10 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 				Drop table...
 			</button>
 		{:else if contextMenu.menuType === 'schema'}
+			<button class="context-menu-item" onclick={() => { openCreateSchemaModal(); closeContextMenu(); }}>
+				<Icon name="plus" size={14} />
+				Create Schema...
+			</button>
 			<button class="context-menu-item" onclick={() => handleCreateTableClick(menuNode)}>
 				<Icon name="table" size={14} />
 				Create Table...

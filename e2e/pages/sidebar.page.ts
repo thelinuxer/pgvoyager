@@ -10,6 +10,38 @@ export class SidebarPage extends BasePage {
     return this.page.locator('[data-testid="sidebar"]');
   }
 
+  // Database switcher
+  get databaseSwitcher(): Locator {
+    return this.page.locator('[data-testid="database-switcher"]');
+  }
+
+  get databaseSwitcherTrigger(): Locator {
+    return this.page.locator('[data-testid="database-switcher-trigger"]');
+  }
+
+  get databaseSwitcherMenu(): Locator {
+    return this.page.locator('[data-testid="database-switcher-menu"]');
+  }
+
+  databaseOption(name: string): Locator {
+    return this.page.locator(`[data-testid="database-option-${name}"]`);
+  }
+
+  async openDatabaseSwitcher(): Promise<void> {
+    await this.databaseSwitcherTrigger.click();
+    await expect(this.databaseSwitcherMenu).toBeVisible({ timeout: 10000 });
+  }
+
+  async switchToDatabase(name: string): Promise<void> {
+    await this.openDatabaseSwitcher();
+    await this.databaseOption(name).click();
+    await expect(this.databaseSwitcherMenu).not.toBeVisible({ timeout: 15000 });
+  }
+
+  async expectCurrentDatabase(name: string): Promise<void> {
+    await expect(this.databaseSwitcherTrigger).toContainText(name);
+  }
+
   // Schema tree
   get schemaTree(): Locator {
     return this.page.locator('[data-testid="schema-tree"]');

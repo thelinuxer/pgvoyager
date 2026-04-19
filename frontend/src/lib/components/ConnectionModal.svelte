@@ -55,7 +55,7 @@
 	}
 
 	async function handleSave() {
-		if (!form.name || !form.host || !form.database || !form.username) {
+		if (!form.name || !form.host || !form.username) {
 			error = 'Please fill in all required fields';
 			return;
 		}
@@ -171,14 +171,15 @@
 			</div>
 
 			<div class="form-group">
-				<label for="database">Database *</label>
+				<label for="database">Default database</label>
 				<input
 					type="text"
 					id="database"
 					data-testid="input-database"
 					bind:value={form.database}
-					placeholder="postgres"
+					placeholder="postgres (leave blank to browse all)"
 				/>
+				<p class="field-hint">Optional. You can switch databases after connecting.</p>
 			</div>
 
 			<div class="form-row">
@@ -336,6 +337,12 @@
 	.form-group input,
 	.form-group select {
 		width: 100%;
+	}
+
+	.field-hint {
+		margin: 6px 0 0;
+		font-size: 12px;
+		color: var(--color-text-muted);
 	}
 
 	.form-row {

@@ -1,6 +1,7 @@
 import type {
 	Connection,
 	ConnectionRequest,
+	Database,
 	Schema,
 	Table,
 	Column,
@@ -104,11 +105,19 @@ export const connectionApi = {
 	disconnect: (id: string) =>
 		fetchAPI<{ message: string }>(`/connections/${id}/disconnect`, {
 			method: 'POST'
+		}),
+
+	switchDatabase: (id: string, database: string) =>
+		fetchAPI<Connection>(`/connections/${id}/switch-database`, {
+			method: 'POST',
+			body: JSON.stringify({ database })
 		})
 };
 
 // Schema API
 export const schemaApi = {
+	listDatabases: (connId: string) => fetchAPI<Database[]>(`/schema/${connId}/databases`),
+
 	listSchemas: (connId: string) => fetchAPI<Schema[]>(`/schema/${connId}/schemas`),
 
 	listTables: (connId: string, schema?: string) => {

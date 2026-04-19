@@ -5,6 +5,7 @@
 	import { dataApi } from '$lib/api/client';
 	import type { SchemaTreeNode, Table, Column } from '$lib/types';
 	import Icon from '$lib/icons/Icon.svelte';
+	import DatabaseSwitcher from './DatabaseSwitcher.svelte';
 
 	interface Props {
 		width: number;
@@ -660,6 +661,8 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 			{/if}
 		</div>
 	</div>
+
+	<DatabaseSwitcher />
 
 	{#if $activeConnection && !$isLoading && !$error && $schemaTree.length > 0}
 		<div class="search-container">

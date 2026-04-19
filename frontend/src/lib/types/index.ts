@@ -16,10 +16,19 @@ export interface ConnectionRequest {
 	name: string;
 	host: string;
 	port: number;
-	database: string;
+	database?: string;
 	username: string;
 	password: string;
 	sslMode: string;
+}
+
+export interface Database {
+	name: string;
+	owner: string;
+	encoding: string;
+	collation: string;
+	size: string;
+	tableCount: number;
 }
 
 export interface Schema {

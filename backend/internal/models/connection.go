@@ -20,7 +20,7 @@ type ConnectionRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Host     string `json:"host" binding:"required"`
 	Port     int    `json:"port" binding:"required"`
-	Database string `json:"database" binding:"required"`
+	Database string `json:"database"`
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password"`
 	SSLMode  string `json:"sslMode"`
@@ -29,8 +29,17 @@ type ConnectionRequest struct {
 type TestConnectionRequest struct {
 	Host     string `json:"host" binding:"required"`
 	Port     int    `json:"port" binding:"required"`
-	Database string `json:"database" binding:"required"`
+	Database string `json:"database"`
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password"`
 	SSLMode  string `json:"sslMode"`
 }
+
+type SwitchDatabaseRequest struct {
+	Database string `json:"database" binding:"required"`
+}
+
+// DefaultDatabase is the fallback database name used when a connection is created
+// without specifying one. Postgres always requires a database to authenticate against;
+// `postgres` is the conventional maintenance database guaranteed to exist.
+const DefaultDatabase = "postgres"

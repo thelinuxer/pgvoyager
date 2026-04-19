@@ -97,6 +97,10 @@ Easily manage your database connections. Click the edit icon next to any connect
   <img src="docs/screenshots/edit-connection.png" alt="Edit Connection" width="50%">
 </p>
 
+### Server-level Connections & Database Switching
+
+A connection targets a PostgreSQL server, not a single database. The database field in the connection form is now optional — leave it blank and PgVoyager will connect to the server's maintenance database so you can browse everything on the server. A database switcher in the sidebar lists every database available to your user and lets you jump between them without creating a separate connection per database.
+
 ## Installation
 
 ### Prerequisites

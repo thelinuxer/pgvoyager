@@ -115,12 +115,17 @@ func (m *ConnectionManager) GetWithPassword(id string) (*models.Connection, erro
 }
 
 func (m *ConnectionManager) Create(req *models.ConnectionRequest) (*models.Connection, error) {
+	database := req.Database
+	if database == "" {
+		database = models.DefaultDatabase
+	}
+
 	conn := &models.Connection{
 		ID:        uuid.New().String(),
 		Name:      req.Name,
 		Host:      req.Host,
 		Port:      req.Port,
-		Database:  req.Database,
+		Database:  database,
 		Username:  req.Username,
 		Password:  req.Password,
 		SSLMode:   req.SSLMode,
@@ -166,7 +171,11 @@ func (m *ConnectionManager) Update(id string, req *models.ConnectionRequest) (*m
 	conn.Name = req.Name
 	conn.Host = req.Host
 	conn.Port = req.Port
-	conn.Database = req.Database
+	if req.Database != "" {
+		conn.Database = req.Database
+	} else if conn.Database == "" {
+		conn.Database = models.DefaultDatabase
+	}
 	conn.Username = req.Username
 	if req.Password != "" {
 		conn.Password = req.Password
@@ -222,25 +231,33 @@ func (m *ConnectionManager) Delete(id string) error {
 }
 
 func (m *ConnectionManager) buildConnString(conn *models.Connection) string {
+	database := conn.Database
+	if database == "" {
+		database = models.DefaultDatabase
+	}
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		conn.Username,
 		conn.Password,
 		conn.Host,
 		conn.Port,
-		conn.Database,
+		database,
 		conn.SSLMode,
 	)
 }
 
 func (m *ConnectionManager) TestConnection(req *models.TestConnectionRequest) error {
+	database := req.Database
+	if database == "" {
+		database = models.DefaultDatabase
+	}
 	connStr := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		req.Username,
 		req.Password,
 		req.Host,
 		req.Port,
-		req.Database,
+		database,
 		req.SSLMode,
 	)
 
@@ -339,4 +356,83 @@ func (m *ConnectionManager) IsConnected(id string) bool {
 	defer m.mu.RUnlock()
 	_, ok := m.pools[id]
 	return ok
+}
+
+// SwitchDatabase reopens the connection's pool against a different database on the same server.
+// The new database name is persisted so reconnects target the last-selected database.
+func (m *ConnectionManager) SwitchDatabase(id, dbName string) (*models.Connection, error) {
+	if dbName == "" {
+		return nil, fmt.Errorf("database name is required")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	conn, ok := m.connections[id]
+	if !ok {
+		return nil, fmt.Errorf("connection not found: %s", id)
+	}
+
+	if conn.Database == dbName {
+		if pool, ok := m.pools[id]; ok && pool != nil {
+			connCopy := *conn
+			connCopy.Password = ""
+			return &connCopy, nil
+		}
+	}
+
+	previousDB := conn.Database
+	conn.Database = dbName
+	conn.UpdatedAt = time.Now()
+
+	if oldPool, ok := m.pools[id]; ok {
+		oldPool.Close()
+		delete(m.pools, id)
+		conn.IsConnected = false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	config, err := pgxpool.ParseConfig(m.buildConnString(conn))
+	if err != nil {
+		conn.Database = previousDB
+		return nil, err
+	}
+	config.MaxConns = 5
+	config.MinConns = 0
+	config.MaxConnIdleTime = 5 * time.Minute
+	config.MaxConnLifetime = 30 * time.Minute
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		conn.Database = previousDB
+		return nil, err
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		conn.Database = previousDB
+		return nil, err
+	}
+
+	db, err := storage.GetDB()
+	if err != nil {
+		pool.Close()
+		conn.Database = previousDB
+		return nil, err
+	}
+
+	if _, err := db.Exec(`UPDATE connections SET database = ? WHERE id = ?`, dbName, id); err != nil {
+		pool.Close()
+		conn.Database = previousDB
+		return nil, err
+	}
+
+	m.pools[id] = pool
+	conn.IsConnected = true
+
+	connCopy := *conn
+	connCopy.Password = ""
+	return &connCopy, nil
 }

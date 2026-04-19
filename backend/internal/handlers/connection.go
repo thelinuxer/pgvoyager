@@ -102,3 +102,20 @@ func Disconnect(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Disconnected successfully"})
 }
+
+func SwitchDatabase(c *gin.Context) {
+	id := c.Param("id")
+	var req models.SwitchDatabaseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	conn, err := database.GetManager().SwitchDatabase(id, req.Database)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, conn)
+}

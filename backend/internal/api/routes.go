@@ -20,6 +20,8 @@ func RegisterRoutes(r *gin.Engine) {
 			connections.POST("/:id/connect", handlers.Connect)
 			connections.POST("/:id/disconnect", handlers.Disconnect)
 			connections.POST("/:id/switch-database", handlers.SwitchDatabase)
+			connections.POST("/:id/databases", handlers.CreateDatabase)
+			connections.DELETE("/:id/databases/:name", handlers.DropDatabase)
 		}
 
 		// Schema browsing (requires active connection)

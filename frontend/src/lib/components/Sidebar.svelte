@@ -630,6 +630,8 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 {/snippet}
 
 <aside class="sidebar" data-testid="sidebar" style="width: {width}px">
+	<DatabaseSwitcher />
+
 	<div class="sidebar-header">
 		<span class="sidebar-title">
 			<Icon name="search" size={12} />
@@ -661,8 +663,6 @@ LIMIT ${limit};`.replace(/\n\n+/g, '\n').trim();
 			{/if}
 		</div>
 	</div>
-
-	<DatabaseSwitcher />
 
 	{#if $activeConnection && !$isLoading && !$error && $schemaTree.length > 0}
 		<div class="search-container">

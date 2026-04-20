@@ -436,3 +436,98 @@ func (m *ConnectionManager) SwitchDatabase(id, dbName string) (*models.Connectio
 	connCopy.Password = ""
 	return &connCopy, nil
 }
+
+// pgQuoteIdent quotes a Postgres identifier for safe inclusion in DDL.
+// Postgres doesn't support parameter binding for database/role names, so we
+// must hand-quote them. Double any embedded `"` and wrap in `"`.
+func pgQuoteIdent(s string) string {
+	out := make([]byte, 0, len(s)+2)
+	out = append(out, '"')
+	for i := 0; i < len(s); i++ {
+		if s[i] == '"' {
+			out = append(out, '"', '"')
+		} else {
+			out = append(out, s[i])
+		}
+	}
+	out = append(out, '"')
+	return string(out)
+}
+
+// CreateDatabase issues CREATE DATABASE on the server via the connection's
+// current pool. Requires CREATEDB privilege.
+func (m *ConnectionManager) CreateDatabase(id string, req *models.CreateDatabaseRequest) error {
+	pool, err := m.GetPool(id)
+	if err != nil {
+		return err
+	}
+
+	sql := "CREATE DATABASE " + pgQuoteIdent(req.Name)
+	if req.Owner != "" {
+		sql += " OWNER " + pgQuoteIdent(req.Owner)
+	}
+	if req.Template != "" {
+		sql += " TEMPLATE " + pgQuoteIdent(req.Template)
+	}
+	if req.Encoding != "" {
+		sql += " ENCODING " + pgQuoteIdent(req.Encoding)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err = pool.Exec(ctx, sql)
+	return err
+}
+
+// DropDatabase issues DROP DATABASE on the server. If the target is the
+// currently-selected database for the connection, it auto-switches to
+// `postgres` first. If force is true, active sessions on the target are
+// terminated before the drop.
+func (m *ConnectionManager) DropDatabase(id, dbName string, force bool) error {
+	if dbName == "" {
+		return fmt.Errorf("database name is required")
+	}
+
+	m.mu.RLock()
+	conn, ok := m.connections[id]
+	m.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("connection not found: %s", id)
+	}
+
+	// Can't drop the DB we're connected to — switch away first.
+	if conn.Database == dbName {
+		fallback := models.DefaultDatabase
+		if fallback == dbName {
+			return fmt.Errorf("cannot drop the default maintenance database `%s`", dbName)
+		}
+		if _, err := m.SwitchDatabase(id, fallback); err != nil {
+			return fmt.Errorf("switch to %s before drop failed: %w", fallback, err)
+		}
+	}
+
+	pool, err := m.GetPool(id)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if force {
+		terminateSQL := `
+			SELECT pg_terminate_backend(pid)
+			FROM pg_stat_activity
+			WHERE datname = $1 AND pid <> pg_backend_pid()
+		`
+		if _, err := pool.Exec(ctx, terminateSQL, dbName); err != nil {
+			return fmt.Errorf("terminate active sessions: %w", err)
+		}
+	}
+
+	if _, err := pool.Exec(ctx, "DROP DATABASE "+pgQuoteIdent(dbName)); err != nil {
+		return err
+	}
+	return nil
+}

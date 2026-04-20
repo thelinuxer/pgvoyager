@@ -39,6 +39,17 @@ type SwitchDatabaseRequest struct {
 	Database string `json:"database" binding:"required"`
 }
 
+type CreateDatabaseRequest struct {
+	Name     string `json:"name" binding:"required"`
+	Owner    string `json:"owner"`
+	Template string `json:"template"`
+	Encoding string `json:"encoding"`
+}
+
+type DropDatabaseRequest struct {
+	Force bool `json:"force"`
+}
+
 // DefaultDatabase is the fallback database name used when a connection is created
 // without specifying one. Postgres always requires a database to authenticate against;
 // `postgres` is the conventional maintenance database guaranteed to exist.

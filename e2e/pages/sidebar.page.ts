@@ -10,36 +10,81 @@ export class SidebarPage extends BasePage {
     return this.page.locator('[data-testid="sidebar"]');
   }
 
-  // Database switcher
-  get databaseSwitcher(): Locator {
-    return this.page.locator('[data-testid="database-switcher"]');
+  // Databases panel (sidebar section listing all databases on the server)
+  get databasesPanel(): Locator {
+    return this.page.locator('[data-testid="databases-panel"]');
   }
 
-  get databaseSwitcherTrigger(): Locator {
-    return this.page.locator('[data-testid="database-switcher-trigger"]');
+  get databasesPanelToggle(): Locator {
+    return this.page.locator('[data-testid="databases-panel-toggle"]');
   }
 
-  get databaseSwitcherMenu(): Locator {
-    return this.page.locator('[data-testid="database-switcher-menu"]');
+  get createDatabaseButton(): Locator {
+    return this.page.locator('[data-testid="btn-create-database"]');
+  }
+
+  get refreshDatabasesButton(): Locator {
+    return this.page.locator('[data-testid="btn-refresh-databases"]');
   }
 
   databaseOption(name: string): Locator {
     return this.page.locator(`[data-testid="database-option-${name}"]`);
   }
 
-  async openDatabaseSwitcher(): Promise<void> {
-    await this.databaseSwitcherTrigger.click();
-    await expect(this.databaseSwitcherMenu).toBeVisible({ timeout: 10000 });
+  databaseRow(name: string): Locator {
+    return this.page.locator(`[data-testid="database-row-${name}"]`);
+  }
+
+  databaseKebab(name: string): Locator {
+    return this.page.locator(`[data-testid="database-kebab-${name}"]`);
+  }
+
+  get databaseContextMenu(): Locator {
+    return this.page.locator('[data-testid="database-context-menu"]');
   }
 
   async switchToDatabase(name: string): Promise<void> {
-    await this.openDatabaseSwitcher();
     await this.databaseOption(name).click();
-    await expect(this.databaseSwitcherMenu).not.toBeVisible({ timeout: 15000 });
+    // Busy state lifts when switch completes.
+    await expect(this.databaseRow(name)).not.toHaveClass(/busy/, { timeout: 15000 });
   }
 
   async expectCurrentDatabase(name: string): Promise<void> {
-    await expect(this.databaseSwitcherTrigger).toContainText(name);
+    await expect(this.databaseRow(name)).toHaveClass(/active/, { timeout: 10000 });
+  }
+
+  async openDatabaseContextMenu(name: string): Promise<void> {
+    await this.databaseKebab(name).click({ force: true });
+    await expect(this.databaseContextMenu).toBeVisible({ timeout: 5000 });
+  }
+
+  async openCreateDatabaseModal(): Promise<void> {
+    await this.createDatabaseButton.click();
+    await expect(this.page.locator('[data-testid="create-database-modal"]')).toBeVisible({ timeout: 5000 });
+  }
+
+  async createDatabase(name: string): Promise<void> {
+    await this.openCreateDatabaseModal();
+    await this.page.locator('[data-testid="input-create-db-name"]').fill(name);
+    await this.page.locator('[data-testid="btn-confirm-create-database"]').click();
+    await expect(this.page.locator('[data-testid="create-database-modal"]')).not.toBeVisible({
+      timeout: 10000,
+    });
+    await expect(this.databaseOption(name)).toBeVisible({ timeout: 10000 });
+  }
+
+  async dropDatabase(name: string, opts: { force?: boolean } = {}): Promise<void> {
+    await this.openDatabaseContextMenu(name);
+    await this.page.locator('[data-testid="ctx-drop-database"]').click();
+    await expect(this.page.locator('[data-testid="drop-database-modal"]')).toBeVisible({ timeout: 5000 });
+    if (opts.force) {
+      await this.page.locator('[data-testid="checkbox-force-drop"]').check();
+    }
+    await this.page.locator('[data-testid="btn-confirm-drop-database"]').click();
+    await expect(this.page.locator('[data-testid="drop-database-modal"]')).not.toBeVisible({
+      timeout: 15000,
+    });
+    await expect(this.databaseOption(name)).not.toBeVisible({ timeout: 10000 });
   }
 
   // Schema tree

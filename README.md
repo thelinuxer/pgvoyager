@@ -97,9 +97,23 @@ Easily manage your database connections. Click the edit icon next to any connect
   <img src="docs/screenshots/edit-connection.png" alt="Edit Connection" width="50%">
 </p>
 
-### Server-level Connections & Database Switching
+### Server-level Connections & Database Management
 
-A connection targets a PostgreSQL server, not a single database. The database field in the connection form is now optional — leave it blank and PgVoyager will connect to the server's maintenance database so you can browse everything on the server. A database switcher in the sidebar lists every database available to your user and lets you jump between them without creating a separate connection per database.
+A connection targets a PostgreSQL server, not a single database. The database field in the connection form is optional — leave it blank and PgVoyager connects to the server's maintenance database so you can browse everything on the server.
+
+<p align="center">
+  <img src="docs/screenshots/connection-modal-optional-db.png" alt="Connection modal with optional default database" width="70%">
+</p>
+
+A **Databases** panel sits at the top of the sidebar, listing every database available to your user. Click to switch, right-click (or the kebab menu) for context actions. Use the `+` button in the section header to create a new database, or **Drop database…** from the context menu to delete one — if you drop the database you're currently connected to, PgVoyager automatically switches to `postgres` first.
+
+<p align="center">
+  <img src="docs/screenshots/database-panel.png" alt="Databases panel in the sidebar" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/create-database-modal.png" alt="Create Database modal" width="100%">
+</p>
 
 ## Installation
 

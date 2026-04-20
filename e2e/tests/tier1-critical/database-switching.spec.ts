@@ -2,15 +2,13 @@ import { testWithCleanState as test, expect, getTestConnectionConfig } from '../
 import { AppPage } from '../../pages';
 
 /**
- * Database Switching Tests
+ * Database panel tests — server-level connections allow listing, switching,
+ * creating, and dropping databases without creating a separate connection per db.
  *
- * Phase B of the server-level connections refactor: a connection targets a server;
- * the user can browse and switch databases without creating a separate connection.
- *
- * Assumes two databases exist on the test server: `postgres` (always present) and
- * the test database from TEST_PG_DATABASE (default: pgvoyager_test).
+ * Assumes two databases exist on the test server: `postgres` and the test
+ * database from TEST_PG_DATABASE (default: pgvoyager_test).
  */
-test.describe('Database Switching', () => {
+test.describe('Database Panel — switching', () => {
   test.describe.configure({ mode: 'serial' });
 
   let app: AppPage;
@@ -30,45 +28,84 @@ test.describe('Database Switching', () => {
     await app.page.close();
   });
 
-  test('database switcher shows current database', async () => {
+  test('panel marks the current database as active', async () => {
     const config = getTestConnectionConfig();
     await app.sidebar.expectCurrentDatabase(config.database);
   });
 
-  test('database switcher lists databases from server', async () => {
-    await app.sidebar.openDatabaseSwitcher();
-
-    // At minimum, the maintenance `postgres` db is always available
+  test('panel lists databases from the server', async () => {
     await expect(app.sidebar.databaseOption('postgres')).toBeVisible({ timeout: 10000 });
 
     const config = getTestConnectionConfig();
     await expect(app.sidebar.databaseOption(config.database)).toBeVisible();
-
-    // Close the menu
-    await app.page.keyboard.press('Escape');
-    await expect(app.sidebar.databaseSwitcherMenu).not.toBeVisible();
   });
 
   test('switching to postgres reloads the schema tree', async () => {
     const config = getTestConnectionConfig();
 
-    // Switch to postgres
     await app.sidebar.switchToDatabase('postgres');
     await app.sidebar.expectCurrentDatabase('postgres');
-
-    // The schema tree should reload — waitForSchemaLoad ensures the reload happened
     await app.sidebar.waitForSchemaLoad();
 
-    // test_schema should NOT be visible in the postgres db (it only exists in pgvoyager_test)
+    // test_schema only exists in pgvoyager_test
     await expect(app.sidebar.getSchemaNode('test_schema')).not.toBeVisible({ timeout: 5000 });
 
-    // Switch back
     await app.sidebar.switchToDatabase(config.database);
     await app.sidebar.expectCurrentDatabase(config.database);
     await app.sidebar.waitForSchemaLoad();
 
-    // test_schema is visible again after switching back
     await app.sidebar.expectSchemaVisible('test_schema');
+  });
+});
+
+test.describe('Database Panel — create and drop', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  // Unique name per run so re-runs don't collide with leftover state.
+  const throwawayDb = `e2e_tmpdb_${Date.now()}`;
+  let app: AppPage;
+
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    app = new AppPage(page);
+    await app.goto();
+
+    const config = getTestConnectionConfig();
+    await app.createConnection(config);
+    await app.expectConnected(config.name);
+    await app.sidebar.waitForSchemaLoad();
+  });
+
+  test.afterAll(async () => {
+    await app.page.close();
+  });
+
+  test('creates a new database from the panel', async () => {
+    await app.sidebar.createDatabase(throwawayDb);
+    await expect(app.sidebar.databaseOption(throwawayDb)).toBeVisible();
+  });
+
+  test('drops a database via the context menu', async () => {
+    await app.sidebar.dropDatabase(throwawayDb);
+    await expect(app.sidebar.databaseOption(throwawayDb)).not.toBeVisible();
+  });
+
+  test('dropping the currently-selected database auto-switches to postgres', async () => {
+    const config = getTestConnectionConfig();
+    const dbToDrop = `e2e_current_drop_${Date.now()}`;
+
+    await app.sidebar.createDatabase(dbToDrop);
+    await app.sidebar.switchToDatabase(dbToDrop);
+    await app.sidebar.expectCurrentDatabase(dbToDrop);
+
+    await app.sidebar.dropDatabase(dbToDrop);
+
+    // Backend auto-switches to `postgres` since we dropped the current db.
+    await app.sidebar.expectCurrentDatabase('postgres');
+
+    // Restore original selection for subsequent tests / fixtures.
+    await app.sidebar.switchToDatabase(config.database);
+    await app.sidebar.waitForSchemaLoad();
   });
 });
 
@@ -83,7 +120,7 @@ test.describe('Connection without explicit database', () => {
     await app.connectionModal.fillConnectionForm({
       ...config,
       name: 'No-Default-DB Connection',
-      database: '', // explicitly blank
+      database: '',
     });
     await app.connectionModal.saveAndConnect();
     await app.connectionModal.waitForClose();
@@ -91,7 +128,6 @@ test.describe('Connection without explicit database', () => {
     await app.expectConnected('No-Default-DB Connection');
     await app.sidebar.waitForSchemaLoad();
 
-    // Backend should have defaulted to `postgres`
     await app.sidebar.expectCurrentDatabase('postgres');
   });
 });

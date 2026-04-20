@@ -111,7 +111,25 @@ export const connectionApi = {
 		fetchAPI<Connection>(`/connections/${id}/switch-database`, {
 			method: 'POST',
 			body: JSON.stringify({ database })
-		})
+		}),
+
+	createDatabase: (
+		id: string,
+		data: { name: string; owner?: string; template?: string; encoding?: string }
+	) =>
+		fetchAPI<{ name: string }>(`/connections/${id}/databases`, {
+			method: 'POST',
+			body: JSON.stringify(data)
+		}),
+
+	dropDatabase: (id: string, name: string, force: boolean) =>
+		fetchAPI<{ dropped: string; currentDatabase: string }>(
+			`/connections/${id}/databases/${encodeURIComponent(name)}`,
+			{
+				method: 'DELETE',
+				body: JSON.stringify({ force })
+			}
+		)
 };
 
 // Schema API

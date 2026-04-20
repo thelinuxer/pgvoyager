@@ -119,3 +119,37 @@ func SwitchDatabase(c *gin.Context) {
 
 	c.JSON(http.StatusOK, conn)
 }
+
+func CreateDatabase(c *gin.Context) {
+	id := c.Param("id")
+	var req models.CreateDatabaseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := database.GetManager().CreateDatabase(id, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"name": req.Name})
+}
+
+func DropDatabase(c *gin.Context) {
+	id := c.Param("id")
+	dbName := c.Param("name")
+	var req models.DropDatabaseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// body optional — default force=false
+		req = models.DropDatabaseRequest{}
+	}
+
+	if err := database.GetManager().DropDatabase(id, dbName, req.Force); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	conn, _ := database.GetManager().Get(id)
+	c.JSON(http.StatusOK, gin.H{"dropped": dbName, "currentDatabase": conn.Database})
+}

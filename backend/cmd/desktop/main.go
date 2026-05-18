@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -79,10 +80,11 @@ func main() {
 	}()
 
 	runErr := chromelaunch.Run(ctx, chromePath, chromelaunch.Options{
-		URL:      backendURL + "/",
-		Width:    1280,
-		Height:   800,
-		AppClass: "PgVoyager",
+		URL:         backendURL + "/",
+		Width:       1280,
+		Height:      800,
+		AppClass:    "PgVoyager",
+		DesktopFile: findInstalledDesktopFile(),
 	})
 
 	shutdown(srv)
@@ -131,4 +133,24 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// findInstalledDesktopFile returns an absolute path to pgvoyager.desktop
+// if the system installer placed one in the conventional XDG locations.
+// Used by chromelaunch to set _NET_WM_DESKTOP_FILE on the spawned
+// browser window so GNOME Shell attaches the correct dock icon.
+// Returns "" if no .desktop entry was found — the launcher then skips
+// the property-set step.
+func findInstalledDesktopFile() string {
+	candidates := []string{
+		filepath.Join(envOr("XDG_DATA_HOME", filepath.Join(envOr("HOME", ""), ".local/share")), "applications/pgvoyager.desktop"),
+		"/usr/local/share/applications/pgvoyager.desktop",
+		"/usr/share/applications/pgvoyager.desktop",
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }

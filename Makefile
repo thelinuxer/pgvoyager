@@ -1,4 +1,5 @@
 .PHONY: all backend frontend dev dev-e2e backend-e2e install clean build build-prod release \
+	desktop-build desktop-dev desktop-doctor \
 	e2e-install e2e-test e2e-test-headed e2e-test-ui e2e-smoke e2e-tier1 e2e-tier2 e2e-tier3 e2e-report
 
 # Version from git tag or default
@@ -121,6 +122,28 @@ run-prod:
 # Build backend binary
 build-backend:
 	cd backend && go build -o ../bin/pgvoyager ./cmd/server
+
+# ---------- Desktop (Wails) ----------
+# Wraps the embedded HTTP server in a native window via Wails v2.
+# Requires the system webview SDK (libwebkit2gtk on Linux, WebView2 on
+# Windows, WebKit on macOS). Run `make desktop-doctor` to verify.
+
+# Verify Wails build-environment is ready.
+desktop-doctor:
+	@command -v wails >/dev/null 2>&1 || { echo "wails CLI not found. Install: go install github.com/wailsapp/wails/v2/cmd/wails@latest"; exit 1; }
+	wails doctor
+
+# Run the desktop wrapper directly (no Wails packaging — just a quick
+# `go run` against the in-process server). Useful for iterating on the
+# main.go wrapper logic.
+desktop-dev: build-frontend-prod
+	cd backend && go run ./cmd/desktop
+
+# Produce a packaged desktop binary via the Wails CLI. Output is placed
+# in backend/cmd/desktop/build/bin/.
+desktop-build: build-frontend-prod
+	cd backend/cmd/desktop && wails build -ldflags "$(LDFLAGS)" -trimpath
+	@echo "Desktop bundle: backend/cmd/desktop/build/bin/"
 
 # Build MCP server binary
 build-mcp:

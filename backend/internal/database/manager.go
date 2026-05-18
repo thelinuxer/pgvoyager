@@ -308,10 +308,15 @@ func (m *ConnectionManager) Connect(id string) error {
 	if err != nil {
 		return err
 	}
-	config.MaxConns = 5                          // Limit max connections per pool
-	config.MinConns = 0                          // Don't keep idle connections
-	config.MaxConnIdleTime = 5 * time.Minute     // Close idle connections faster
-	config.MaxConnLifetime = 30 * time.Minute    // Recycle connections
+	// PgVoyager is single-user and largely UI-driven; one or two
+	// concurrent server-side queries cover every realistic flow.
+	// Earlier `MaxConns = 5` exhausted Postgres' default 100-conn cap
+	// in the E2E suite once enough pools were open at once (5 conns
+	// per pool × N pools).
+	config.MaxConns = 2
+	config.MinConns = 0                       // No idle connections
+	config.MaxConnIdleTime = 1 * time.Minute  // Aggressive idle release
+	config.MaxConnLifetime = 30 * time.Minute // Recycle connections
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {

@@ -100,11 +100,16 @@ func SecurityHeaders() gin.HandlerFunc {
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
-		// CSP allows only same-origin and inline styles (SvelteKit's
-		// hydration injects inline style attrs); no remote fetch.
+		// CSP. `'unsafe-inline'` is allowed on script-src and style-src
+		// because SvelteKit emits an inline bootstrap <script> (and
+		// inline style attributes) at the end of index.html — without
+		// it the SPA loads HTML but never hydrates. Practical risk is
+		// low for a local-only tool whose entire bundle is shipped in
+		// our binary (no injection surface). If we later add a CSP
+		// nonce or hash-based scheme, this can be tightened.
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self'; "+
+				"script-src 'self' 'unsafe-inline'; "+
 				"style-src 'self' 'unsafe-inline'; "+
 				"img-src 'self' data:; "+
 				"font-src 'self' data:; "+

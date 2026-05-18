@@ -91,8 +91,18 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 			t.Errorf("header %s = %q, want %q", k, got, v)
 		}
 	}
-	if csp := w.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "default-src 'self'") {
+	csp := w.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "default-src 'self'") {
 		t.Errorf("CSP missing default-src 'self': %q", csp)
+	}
+	// SvelteKit emits an inline bootstrap <script>; the CSP must allow it
+	// or the SPA loads HTML but never hydrates (the regression that
+	// surfaced the day desktop wrapper was first opened).
+	if !strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
+		t.Errorf("CSP must allow inline scripts for SvelteKit hydration: %q", csp)
+	}
+	if !strings.Contains(csp, "frame-ancestors 'none'") {
+		t.Errorf("CSP must forbid framing: %q", csp)
 	}
 }
 

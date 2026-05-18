@@ -1,11 +1,7 @@
 // Command desktop wraps the PgVoyager HTTP server in a desktop window
-// driven by an existing Chrome/Edge install via the DevTools protocol
-// (lorca). Pure Go — no CGO, no platform webview SDK, no per-OS dev
-// headers. Cross-compiles from a single Linux runner exactly like the
-// headless `cmd/server` binary.
-//
-// Requires Chrome, Chromium, or Edge installed on the user's machine.
-// Falls back to a clear error message if no compatible browser is found.
+// by launching an installed Chromium-family browser in `--app` mode
+// pointing at a loopback URL. Pure Go — no CGO, no platform webview SDK,
+// no per-OS dev headers. Cross-compiles from any host.
 package main
 
 import (
@@ -23,9 +19,9 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/zserge/lorca"
 
 	"github.com/thelinuxer/pgvoyager/internal/api"
+	"github.com/thelinuxer/pgvoyager/internal/chromelaunch"
 	"github.com/thelinuxer/pgvoyager/internal/security"
 	"github.com/thelinuxer/pgvoyager/internal/static"
 	"github.com/thelinuxer/pgvoyager/web"
@@ -35,6 +31,11 @@ func main() {
 	port, err := strconv.Atoi(envOr("PGVOYAGER_PORT", "0"))
 	if err != nil || port < 0 || port > 65535 {
 		log.Fatalf("invalid PGVOYAGER_PORT: %v", err)
+	}
+
+	chromePath, err := chromelaunch.Find()
+	if err != nil {
+		log.Fatalf("%v", err)
 	}
 
 	host := security.ListenHost()
@@ -65,41 +66,29 @@ func main() {
 		}
 	}()
 
-	// Open the window. lorca launches the user's Chrome/Edge/Chromium in
-	// `--app` mode against a temporary user-data dir, then drives it via
-	// the DevTools protocol over a local socket.
-	// Chrome 124+ tightened DevTools to require an explicit
-	// `--remote-allow-origins`. lorca v0.1.10 predates that change, so
-	// we pass the flag here. `*` is safe because the DevTools port
-	// lorca opens is itself loopback-only.
-	//
-	// `--class=PgVoyager` sets WM_CLASS on Linux so the installed
-	// .desktop entry (StartupWMClass=PgVoyager) matches and the dock /
-	// taskbar shows the PgVoyager elephant icon instead of the generic
-	// Chrome icon. The flag is harmless on macOS/Windows.
-	// lorca already passes its own `--user-data-dir` into a temp dir,
-	// so we don't need to manage profile isolation ourselves.
-	ui, err := lorca.New(backendURL+"/", "", 1280, 800,
-		"--class=PgVoyager",
-		"--remote-allow-origins=*",
-		"--disable-translate",
-		"--disable-features=TranslateUI",
-	)
-	if err != nil {
-		shutdown(srv)
-		log.Fatalf("open window: %v (install Chrome, Chromium, or Edge — lorca drives an existing browser, it doesn't bundle one)", err)
-	}
-	defer ui.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Bridge OS signals + window-close so either path triggers an
-	// orderly server shutdown.
+	// Bridge OS signals into ctx-cancel so either the user closing the
+	// browser window or SIGINT/SIGTERM tears down the server cleanly.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	select {
-	case <-ui.Done():
-	case <-sigCh:
-	}
+	go func() {
+		<-sigCh
+		cancel()
+	}()
+
+	runErr := chromelaunch.Run(ctx, chromePath, chromelaunch.Options{
+		URL:      backendURL + "/",
+		Width:    1280,
+		Height:   800,
+		AppClass: "PgVoyager",
+	})
+
 	shutdown(srv)
+	if runErr != nil {
+		log.Fatalf("browser: %v", runErr)
+	}
 }
 
 func buildRouter() *gin.Engine {
@@ -115,10 +104,9 @@ func buildRouter() *gin.Engine {
 	r.Use(security.SecurityHeaders())
 	r.Use(security.MaxBodyBytes(security.MaxRequestBodyBytes))
 	r.Use(security.OriginGuard())
-	// The desktop bundle is single-origin (the lorca window navigates
-	// directly to the loopback server) so CORS isn't strictly needed,
-	// but keeping the dev allowlist lets developers `npm run dev` the
-	// frontend against a running desktop binary.
+	// Dev allowlist kept so a developer can `npm run dev` the frontend
+	// against a running desktop binary; the desktop bundle itself is
+	// single-origin so CORS isn't required in normal use.
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     security.DevOrigins(),
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},

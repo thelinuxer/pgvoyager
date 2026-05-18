@@ -100,10 +100,12 @@ ARCH=$(uname -m)
 case $ARCH in
     x86_64)
         BINARY="pgvoyager-linux-amd64"
+        DESKTOP_BINARY="pgvoyager-desktop-linux-amd64"
         print_success "Architecture: ${WHITE}x86_64 (64-bit)${NC}"
         ;;
     aarch64)
         BINARY="pgvoyager-linux-arm64"
+        DESKTOP_BINARY="pgvoyager-desktop-linux-arm64"
         print_success "Architecture: ${WHITE}ARM64${NC}"
         ;;
     *)
@@ -159,6 +161,32 @@ if [ -f "${SCRIPT_DIR}/pgvoyager-mcp" ]; then
     sudo chmod 755 "${INSTALL_DIR}/pgvoyager-mcp"
     print_done
     print_success "Installed: ${DIM}${INSTALL_DIR}/pgvoyager-mcp${NC}"
+fi
+
+# Install desktop binary (lorca wrapper). The .desktop entry's Exec=
+# points at this; without it the application menu falls back to the
+# legacy launcher script which opens the user's default browser.
+DESKTOP_SRC=""
+if [ -f "${SCRIPT_DIR}/pgvoyager-desktop" ]; then
+    DESKTOP_SRC="${SCRIPT_DIR}/pgvoyager-desktop"
+elif [ -f "${SCRIPT_DIR}/${DESKTOP_BINARY}" ]; then
+    DESKTOP_SRC="${SCRIPT_DIR}/${DESKTOP_BINARY}"
+elif [ -n "${DESKTOP_BINARY}" ]; then
+    print_step "Downloading ${DESKTOP_BINARY}..."
+    if curl -fsSL "https://github.com/thelinuxer/pgvoyager/releases/latest/download/${DESKTOP_BINARY}" -o "${SCRIPT_DIR}/pgvoyager-desktop"; then
+        chmod +x "${SCRIPT_DIR}/pgvoyager-desktop"
+        DESKTOP_SRC="${SCRIPT_DIR}/pgvoyager-desktop"
+        print_success "Downloaded successfully"
+    else
+        print_info "Desktop binary not available — application menu entry will fall back to launcher script"
+    fi
+fi
+if [ -n "${DESKTOP_SRC}" ]; then
+    print_progress "Installing desktop binary"
+    sudo cp "${DESKTOP_SRC}" "${INSTALL_DIR}/pgvoyager-desktop"
+    sudo chmod 755 "${INSTALL_DIR}/pgvoyager-desktop"
+    print_done
+    print_success "Installed: ${DIM}${INSTALL_DIR}/pgvoyager-desktop${NC}"
 fi
 
 # Install launcher

@@ -110,6 +110,7 @@ jobs:
           mkdir -p dist/pgvoyager-linux-amd64
           cp releases/pgvoyager-linux-amd64 dist/pgvoyager-linux-amd64/pgvoyager
           cp releases/pgvoyager-mcp-linux-amd64 dist/pgvoyager-linux-amd64/pgvoyager-mcp
+          cp releases/pgvoyager-desktop-linux-amd64 dist/pgvoyager-linux-amd64/pgvoyager-desktop
           cp packaging/linux/install.sh dist/pgvoyager-linux-amd64/
           cp packaging/linux/uninstall.sh dist/pgvoyager-linux-amd64/
           cp packaging/linux/pgvoyager-launcher dist/pgvoyager-linux-amd64/
@@ -117,6 +118,7 @@ jobs:
           cp packaging/linux/pgvoyager-*.png dist/pgvoyager-linux-amd64/
           chmod +x dist/pgvoyager-linux-amd64/pgvoyager
           chmod +x dist/pgvoyager-linux-amd64/pgvoyager-mcp
+          chmod +x dist/pgvoyager-linux-amd64/pgvoyager-desktop
           chmod +x dist/pgvoyager-linux-amd64/install.sh
           chmod +x dist/pgvoyager-linux-amd64/uninstall.sh
           chmod +x dist/pgvoyager-linux-amd64/pgvoyager-launcher
@@ -126,6 +128,7 @@ jobs:
           mkdir -p dist/pgvoyager-linux-arm64
           cp releases/pgvoyager-linux-arm64 dist/pgvoyager-linux-arm64/pgvoyager
           cp releases/pgvoyager-mcp-linux-arm64 dist/pgvoyager-linux-arm64/pgvoyager-mcp
+          cp releases/pgvoyager-desktop-linux-arm64 dist/pgvoyager-linux-arm64/pgvoyager-desktop
           cp packaging/linux/install.sh dist/pgvoyager-linux-arm64/
           cp packaging/linux/uninstall.sh dist/pgvoyager-linux-arm64/
           cp packaging/linux/pgvoyager-launcher dist/pgvoyager-linux-arm64/
@@ -133,6 +136,7 @@ jobs:
           cp packaging/linux/pgvoyager-*.png dist/pgvoyager-linux-arm64/
           chmod +x dist/pgvoyager-linux-arm64/pgvoyager
           chmod +x dist/pgvoyager-linux-arm64/pgvoyager-mcp
+          chmod +x dist/pgvoyager-linux-arm64/pgvoyager-desktop
           chmod +x dist/pgvoyager-linux-arm64/install.sh
           chmod +x dist/pgvoyager-linux-arm64/uninstall.sh
           chmod +x dist/pgvoyager-linux-arm64/pgvoyager-launcher
@@ -143,6 +147,7 @@ jobs:
           mkdir -p dist/pgvoyager-windows-amd64
           cp releases/pgvoyager-windows-amd64.exe dist/pgvoyager-windows-amd64/pgvoyager.exe
           cp releases/pgvoyager-mcp-windows-amd64.exe dist/pgvoyager-windows-amd64/pgvoyager-mcp.exe
+          cp releases/pgvoyager-desktop-windows-amd64.exe dist/pgvoyager-windows-amd64/pgvoyager-desktop.exe
           cp packaging/windows/install.ps1 dist/pgvoyager-windows-amd64/
           cp packaging/windows/pgvoyager-launcher.bat dist/pgvoyager-windows-amd64/
           cp packaging/windows/pgvoyager.ico dist/pgvoyager-windows-amd64/

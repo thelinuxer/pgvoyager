@@ -138,6 +138,15 @@ else
     print_info "MCP server not found"
 fi
 
+if [ -f "${INSTALL_DIR}/pgvoyager-desktop" ]; then
+    print_progress "Removing desktop binary"
+    sudo rm -f "${INSTALL_DIR}/pgvoyager-desktop" 2>/dev/null || rm -f "${INSTALL_DIR}/pgvoyager-desktop"
+    print_done
+    BINARIES_REMOVED=$((BINARIES_REMOVED + 1))
+else
+    print_info "Desktop binary not found"
+fi
+
 if [ $BINARIES_REMOVED -gt 0 ]; then
     print_success "Removed ${BINARIES_REMOVED} binary file(s)"
 fi

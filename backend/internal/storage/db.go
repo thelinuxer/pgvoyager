@@ -3,12 +3,14 @@ package storage
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
 	_ "modernc.org/sqlite"
 	"github.com/thelinuxer/pgvoyager/internal/models"
+	"github.com/thelinuxer/pgvoyager/internal/secretstore"
 )
 
 var (
@@ -16,20 +18,15 @@ var (
 	dbOnce sync.Once
 )
 
-// GetDB returns the singleton database instance
+// GetDB returns the singleton database instance.
 func GetDB() (*sql.DB, error) {
 	var err error
 	dbOnce.Do(func() {
-		// Allow overriding config directory via environment variable (useful for e2e tests)
-		pgvoyagerDir := os.Getenv("PGVOYAGER_CONFIG_DIR")
-		if pgvoyagerDir == "" {
-			configDir, e := os.UserConfigDir()
-			if e != nil {
-				configDir = os.TempDir()
-			}
-			pgvoyagerDir = filepath.Join(configDir, "pgvoyager")
+		var pgvoyagerDir string
+		pgvoyagerDir, err = secretstore.Ensure()
+		if err != nil {
+			return
 		}
-		os.MkdirAll(pgvoyagerDir, 0755)
 
 		dbPath := filepath.Join(pgvoyagerDir, "pgvoyager.db")
 		db, err = sql.Open("sqlite", dbPath)
@@ -37,24 +34,33 @@ func GetDB() (*sql.DB, error) {
 			return
 		}
 
-		// Initialize schema
+		// Tighten file perms — the DB contains plaintext connection
+		// passwords. SQLite respects the user's umask on file create,
+		// which is typically 0644 (world-readable). Force 0600 so
+		// other accounts on the host can't read it.
+		if err = secretstore.SecureFile(dbPath); err != nil {
+			return
+		}
+
 		if _, err = db.Exec(schema); err != nil {
 			return
 		}
 
-		// Migrate from old connections.json if exists
 		err = migrateFromJSON(pgvoyagerDir)
 	})
 	return db, err
 }
 
-// migrateFromJSON migrates data from old connections.json file
+// migrateFromJSON migrates data from the legacy connections.json file. After
+// a successful import the backup is shredded — the prior implementation
+// renamed it to `.migrated`, leaving plaintext passwords on disk forever
+// at whatever perms the user had originally chosen.
 func migrateFromJSON(configDir string) error {
 	jsonPath := filepath.Join(configDir, "connections.json")
 	data, err := os.ReadFile(jsonPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // No old file to migrate
+			return nil
 		}
 		return err
 	}
@@ -64,16 +70,19 @@ func migrateFromJSON(configDir string) error {
 		return err
 	}
 
-	// Check if we already have connections (migration already done)
 	var count int
 	if err := db.QueryRow("SELECT COUNT(*) FROM connections").Scan(&count); err != nil {
 		return err
 	}
 	if count > 0 {
-		return nil // Already migrated
+		// Already migrated on a prior run — still scrub the leftover
+		// JSON (or any prior `.migrated` rename) so plaintext doesn't
+		// linger.
+		_ = secretstore.ShredAndRemove(jsonPath)
+		_ = secretstore.ShredAndRemove(jsonPath + ".migrated")
+		return nil
 	}
 
-	// Migrate connections
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -109,7 +118,11 @@ func migrateFromJSON(configDir string) error {
 		return err
 	}
 
-	// Backup and remove old file
-	backupPath := jsonPath + ".migrated"
-	return os.Rename(jsonPath, backupPath)
+	// Successful import — destroy the plaintext source.
+	if err := secretstore.ShredAndRemove(jsonPath); err != nil {
+		return fmt.Errorf("shred migrated json: %w", err)
+	}
+	// Also nuke any prior `.migrated` backup left by older installs.
+	_ = secretstore.ShredAndRemove(jsonPath + ".migrated")
+	return nil
 }

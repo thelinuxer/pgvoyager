@@ -14,7 +14,63 @@ import (
 	"github.com/creack/pty"
 	"github.com/google/uuid"
 	"github.com/thelinuxer/pgvoyager/internal/database"
+	"github.com/thelinuxer/pgvoyager/internal/secretstore"
 )
+
+// envAllowlist is the set of host env vars propagated to spawned claude/
+// pgvoyager-mcp subprocesses. Everything else — including PGPASSWORD,
+// AWS_SECRET_ACCESS_KEY, GITHUB_TOKEN, and any other operator secrets —
+// is stripped so a subprocess (or any tool Claude later spawns under it)
+// can't leak them. Names are matched exactly; `*_PREFIX` entries use
+// `HasPrefix` to allow related vars (LC_*, ANTHROPIC_*) through.
+var envAllowlist = map[string]struct{}{
+	"PATH": {}, "HOME": {}, "USER": {}, "LOGNAME": {}, "SHELL": {},
+	"LANG": {}, "TZ": {},
+	"TERM": {}, "COLORTERM": {},
+	"XDG_CONFIG_HOME": {}, "XDG_CACHE_HOME": {}, "XDG_DATA_HOME": {},
+	"TMPDIR": {},
+	// Claude CLI's own credential / config env. Without these the CLI
+	// can't authenticate and the terminal is useless.
+	"ANTHROPIC_API_KEY":  {},
+	"ANTHROPIC_BASE_URL": {},
+	"ANTHROPIC_AUTH_TOKEN": {},
+	"CLAUDE_CODE_USE_BEDROCK": {}, "CLAUDE_CODE_USE_VERTEX": {},
+	"AWS_REGION": {}, "AWS_DEFAULT_REGION": {},
+	"GOOGLE_CLOUD_PROJECT": {}, "VERTEX_REGION": {},
+}
+
+var envAllowedPrefixes = []string{
+	"LC_",        // locale
+	"ANTHROPIC_", // Claude CLI configuration
+	"CLAUDE_",    // Claude CLI behavior toggles
+}
+
+// buildSubprocessEnv returns a curated copy of the parent process's
+// environment plus the caller-supplied additions. Only variables in the
+// allowlist (exact match or matching one of the allowed prefixes) survive.
+// Additions always win and aren't filtered.
+func buildSubprocessEnv(parent []string, additions ...string) []string {
+	out := make([]string, 0, len(additions)+16)
+	for _, kv := range parent {
+		eq := strings.IndexByte(kv, '=')
+		if eq <= 0 {
+			continue
+		}
+		name := kv[:eq]
+		if _, ok := envAllowlist[name]; ok {
+			out = append(out, kv)
+			continue
+		}
+		for _, p := range envAllowedPrefixes {
+			if strings.HasPrefix(name, p) {
+				out = append(out, kv)
+				break
+			}
+		}
+	}
+	out = append(out, additions...)
+	return out
+}
 
 // Manager handles Claude Code terminal sessions
 type Manager struct {
@@ -292,6 +348,26 @@ func (m *Manager) CreateSession(connectionID string) (*Session, error) {
 		return nil, fmt.Errorf("failed to marshal MCP config: %w", err)
 	}
 
+	// Write the MCP config (which contains PGVOYAGER_SESSION_ID) to a
+	// 0600 file in a session-scoped temp dir instead of passing it as
+	// a command-line argument. argv is visible via /proc/<pid>/cmdline
+	// to any local user; the previous `--mcp-config <json-string>`
+	// path leaked the session credential to every other account on
+	// the host.
+	tempDir, err := os.MkdirTemp("", "pgvoyager-session-*")
+	if err != nil {
+		return nil, fmt.Errorf("create session temp dir: %w", err)
+	}
+	if err := os.Chmod(tempDir, secretstore.DirPerm); err != nil {
+		os.RemoveAll(tempDir)
+		return nil, fmt.Errorf("chmod session temp dir: %w", err)
+	}
+	mcpConfigPath := filepath.Join(tempDir, "mcp.json")
+	if err := os.WriteFile(mcpConfigPath, mcpConfigJSON, secretstore.FilePerm); err != nil {
+		os.RemoveAll(tempDir)
+		return nil, fmt.Errorf("write MCP config: %w", err)
+	}
+
 	// Build command with arguments
 	// Auto-approve all pgvoyager MCP tools
 	allowedTools := []string{
@@ -312,13 +388,15 @@ func (m *Manager) CreateSession(connectionID string) (*Session, error) {
 	}
 
 	cmd := exec.Command(claudePath,
-		"--mcp-config", string(mcpConfigJSON),
+		"--mcp-config", mcpConfigPath,
 		"--append-system-prompt", systemPrompt,
 		"--allowedTools", strings.Join(allowedTools, ","),
 	)
 
-	// Set environment with proper terminal settings
-	cmd.Env = append(os.Environ(),
+	// Curated env: drops PGPASSWORD, AWS_SECRET_*, GITHUB_TOKEN, and
+	// anything else that isn't on the allowlist. Prevents subprocesses
+	// Claude later spawns from inheriting operator secrets.
+	cmd.Env = buildSubprocessEnv(os.Environ(),
 		fmt.Sprintf("PGVOYAGER_CONNECTION_ID=%s", connectionID),
 		fmt.Sprintf("PGVOYAGER_SESSION_ID=%s", sessionID),
 		"TERM=xterm-256color",
@@ -342,6 +420,7 @@ func (m *Manager) CreateSession(connectionID string) (*Session, error) {
 		PTY:          ptmx,
 		Cmd:          cmd,
 		EditorState:  &EditorState{Content: ""},
+		TempDir:      tempDir,
 	}
 
 	m.mu.Lock()

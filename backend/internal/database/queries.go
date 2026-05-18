@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thelinuxer/pgvoyager/internal/models"
 	"github.com/google/uuid"
+	"github.com/thelinuxer/pgvoyager/internal/models"
+	"github.com/thelinuxer/pgvoyager/internal/secretstore"
 )
 
 var (
@@ -25,16 +26,13 @@ type SavedQueryManager struct {
 
 func GetQueryManager() *SavedQueryManager {
 	queryManagerOnce.Do(func() {
-		// Allow overriding config directory via environment variable (useful for e2e tests)
-		pgvoyagerDir := os.Getenv("PGVOYAGER_CONFIG_DIR")
-		if pgvoyagerDir == "" {
-			configDir, err := os.UserConfigDir()
-			if err != nil {
-				configDir = os.TempDir()
-			}
-			pgvoyagerDir = filepath.Join(configDir, "pgvoyager")
+		pgvoyagerDir, err := secretstore.Ensure()
+		if err != nil {
+			// Fall back to a temp dir if HOME / UserConfigDir blew up;
+			// saved queries are user-content, not credentials.
+			pgvoyagerDir = filepath.Join(os.TempDir(), "pgvoyager")
+			_ = os.MkdirAll(pgvoyagerDir, secretstore.DirPerm)
 		}
-		os.MkdirAll(pgvoyagerDir, 0755)
 
 		queryManager = &SavedQueryManager{
 			queries:    make(map[string]*models.SavedQuery),

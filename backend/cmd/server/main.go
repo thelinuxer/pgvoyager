@@ -52,18 +52,25 @@ func main() {
 	}
 	r.Use(security.SecurityHeaders())
 	r.Use(security.MaxBodyBytes(security.MaxRequestBodyBytes))
+	// OriginGuard blocks browser-mediated CSRF from any page the user
+	// visits — even with bind-localhost, a malicious site can `fetch()`
+	// to http://localhost:5137 and Origin would be the attacker. Empty
+	// Origin (curl, MCP subprocess, native HTTP clients) is allowed.
+	r.Use(security.OriginGuard())
 
 	if isProd {
 		r.Use(static.ServeEmbedded(web.StaticFiles, "dist"))
 		log.Printf("PgVoyager running in production mode")
 	} else {
 		// Dev: SvelteKit runs on a different port. AllowCredentials is
-		// false — the API uses no cookies / Authorization headers, so
-		// credentialed CORS would just widen attack surface.
+		// false — the API uses no cookies, so credentialed CORS would
+		// just widen attack surface. Authorization is allowed so the
+		// FE can send the per-session bearer token on session-scoped
+		// requests.
 		r.Use(cors.New(cors.Config{
 			AllowOrigins:     security.DevOrigins(),
 			AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
-			AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "X-Claude-Session-ID"},
+			AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Claude-Session-ID"},
 			ExposeHeaders:    []string{"Content-Length"},
 			AllowCredentials: false,
 			MaxAge:           12 * time.Hour,

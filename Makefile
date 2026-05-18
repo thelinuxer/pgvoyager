@@ -1,4 +1,5 @@
 .PHONY: all backend frontend dev dev-e2e backend-e2e install clean build build-prod release \
+	desktop desktop-dev \
 	e2e-install e2e-test e2e-test-headed e2e-test-ui e2e-smoke e2e-tier1 e2e-tier2 e2e-tier3 e2e-report
 
 # Version from git tag or default
@@ -96,6 +97,14 @@ release: build-frontend-prod
 	cd backend && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../releases/pgvoyager-windows-amd64.exe ./cmd/server
 	cd backend && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../releases/pgvoyager-mcp-windows-amd64.exe ./cmd/mcp
 
+	# Desktop wrapper — same cross-compile matrix because lorca is pure Go.
+	@echo "Building desktop binaries..."
+	cd backend && GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../releases/pgvoyager-desktop-linux-amd64       ./cmd/desktop
+	cd backend && GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../releases/pgvoyager-desktop-linux-arm64       ./cmd/desktop
+	cd backend && GOOS=darwin  GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../releases/pgvoyager-desktop-darwin-amd64      ./cmd/desktop
+	cd backend && GOOS=darwin  GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../releases/pgvoyager-desktop-darwin-arm64      ./cmd/desktop
+	cd backend && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o ../releases/pgvoyager-desktop-windows-amd64.exe ./cmd/desktop
+
 	@echo "Release builds complete in releases/"
 	@ls -lh releases/
 
@@ -129,6 +138,18 @@ build-mcp:
 # Build frontend for production
 build-frontend:
 	cd frontend && npm run build
+
+# ---------- Desktop (lorca) ----------
+# Pure-Go wrapper that drives the user's installed Chrome / Chromium /
+# Edge via the DevTools protocol. No CGO, no platform webview SDK —
+# cross-compiles from any host. Users need a Chromium-family browser
+# installed at runtime.
+
+desktop: build-frontend-prod
+	cd backend && go build -ldflags="$(LDFLAGS)" -o ../bin/pgvoyager-desktop ./cmd/desktop
+
+desktop-dev: build-frontend-prod
+	cd backend && go run ./cmd/desktop
 
 # ====================
 # E2E Testing Commands

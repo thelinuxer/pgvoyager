@@ -2,7 +2,11 @@ package claude
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,6 +20,31 @@ import (
 	"github.com/thelinuxer/pgvoyager/internal/database"
 	"github.com/thelinuxer/pgvoyager/internal/secretstore"
 )
+
+// MaxSessions caps live Claude sessions. Each session spawns a `claude`
+// subprocess (and its child MCP server) with a PTY; an unauthenticated
+// caller that can hit `/api/claude/sessions` could otherwise spawn
+// unbounded processes. Tuned for normal interactive use — one user is
+// unlikely to want more than a handful.
+const MaxSessions = 8
+
+// ErrTooManySessions is returned by CreateSession when MaxSessions is hit.
+var ErrTooManySessions = errors.New("too many active Claude sessions")
+
+// ErrInvalidSessionToken is returned when bearer-token authentication
+// against a session fails.
+var ErrInvalidSessionToken = errors.New("invalid session token")
+
+// generateSessionToken returns 32 random bytes encoded as URL-safe base64
+// (no padding). Crypto-random — the token is the only thing standing
+// between an attacker who learned a session ID and full DB access.
+func generateSessionToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
 
 // envAllowlist is the set of host env vars propagated to spawned claude/
 // pgvoyager-mcp subprocesses. Everything else — including PGPASSWORD,
@@ -102,49 +131,66 @@ func getBackendURL() string {
 	return fmt.Sprintf("http://localhost:%s", port)
 }
 
-// findMCPServer looks for the pgvoyager-mcp binary in multiple locations
+// findMCPServer looks for the pgvoyager-mcp binary. Trusted paths
+// (explicit env override, alongside our own executable, our build's bin/
+// dir) are checked BEFORE $PATH so a hostile $PATH entry can't hijack the
+// MCP server process and inherit the session env.
 func findMCPServer() string {
-	// Check environment variable first
+	// Explicit override wins; the operator has chosen this path.
 	if path := os.Getenv("PGVOYAGER_MCP_PATH"); path != "" {
 		if _, err := os.Stat(path); err == nil {
 			return path
 		}
 	}
 
-	// Get current working directory
-	cwd, _ := os.Getwd()
-
-	// List of paths to check
-	searchPaths := []string{
-		// Relative to current working directory
-		filepath.Join(cwd, "bin", "pgvoyager-mcp"),
-		filepath.Join(cwd, "..", "bin", "pgvoyager-mcp"),
-		filepath.Join(cwd, "pgvoyager-mcp"),
-		// Relative to executable
-		"",
-	}
-
-	// Add path relative to executable
+	// Path next to our own executable — the canonical install layout.
 	if execPath, err := os.Executable(); err == nil {
-		searchPaths[len(searchPaths)-1] = filepath.Join(filepath.Dir(execPath), "pgvoyager-mcp")
+		candidate := filepath.Join(filepath.Dir(execPath), "pgvoyager-mcp")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
 	}
 
-	// Check PATH
+	// Development layouts under the source checkout.
+	if cwd, err := os.Getwd(); err == nil {
+		for _, candidate := range []string{
+			filepath.Join(cwd, "bin", "pgvoyager-mcp"),
+			filepath.Join(cwd, "..", "bin", "pgvoyager-mcp"),
+			filepath.Join(cwd, "pgvoyager-mcp"),
+		} {
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+		}
+	}
+
+	// Last resort — $PATH. Logged so the operator can audit the resolved
+	// binary against their expectations.
 	if path, err := exec.LookPath("pgvoyager-mcp"); err == nil {
+		fmt.Fprintf(os.Stderr, "pgvoyager: resolved pgvoyager-mcp from PATH at %s\n", path)
 		return path
 	}
 
-	// Check each search path
-	for _, path := range searchPaths {
-		if path == "" {
-			continue
-		}
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
 	return ""
+}
+
+// findClaude resolves the `claude` CLI binary, preferring explicit env
+// override over PATH. Without the override, PATH is required (claude is
+// distributed via npm and lives there), but the resolved path is logged
+// so the operator can spot a hijack.
+func findClaude() (string, error) {
+	if path := os.Getenv("PGVOYAGER_CLAUDE_PATH"); path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+		return "", fmt.Errorf("PGVOYAGER_CLAUDE_PATH=%s does not exist", path)
+	}
+	path, err := exec.LookPath("claude")
+	if err != nil {
+		return "", fmt.Errorf("claude not found in PATH: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "pgvoyager: resolved claude from PATH at %s\n", path)
+	return path, nil
 }
 
 // MCPConfig represents the MCP configuration for Claude Code
@@ -295,7 +341,18 @@ func buildSystemPrompt(dbContext *DatabaseContext) string {
 
 // CreateSession spawns a new Claude Code terminal session
 func (m *Manager) CreateSession(connectionID string) (*Session, error) {
+	m.mu.RLock()
+	live := len(m.sessions)
+	m.mu.RUnlock()
+	if live >= MaxSessions {
+		return nil, ErrTooManySessions
+	}
+
 	sessionID := uuid.New().String()
+	token, err := generateSessionToken()
+	if err != nil {
+		return nil, fmt.Errorf("generate session token: %w", err)
+	}
 
 	// Get database connection details for system prompt
 	dbManager := database.GetManager()
@@ -304,10 +361,10 @@ func (m *Manager) CreateSession(connectionID string) (*Session, error) {
 		return nil, fmt.Errorf("failed to get connection: %w", err)
 	}
 
-	// Find claude executable
-	claudePath, err := exec.LookPath("claude")
+	// Find claude executable (env override preferred, PATH fallback).
+	claudePath, err := findClaude()
 	if err != nil {
-		return nil, fmt.Errorf("claude not found in PATH: %w", err)
+		return nil, err
 	}
 
 	// Find the MCP server binary
@@ -337,8 +394,9 @@ func (m *Manager) CreateSession(connectionID string) (*Session, error) {
 			"pgvoyager": {
 				Command: mcpServerPath,
 				Env: map[string]string{
-					"PGVOYAGER_SESSION_ID":   sessionID,
-					"PGVOYAGER_BACKEND_URL":  getBackendURL(),
+					"PGVOYAGER_SESSION_ID":    sessionID,
+					"PGVOYAGER_SESSION_TOKEN": token,
+					"PGVOYAGER_BACKEND_URL":   getBackendURL(),
 				},
 			},
 		},
@@ -416,6 +474,7 @@ func (m *Manager) CreateSession(connectionID string) (*Session, error) {
 
 	session := &Session{
 		ID:           sessionID,
+		Token:        token,
 		ConnectionID: connectionID,
 		PTY:          ptmx,
 		Cmd:          cmd,
@@ -430,12 +489,34 @@ func (m *Manager) CreateSession(connectionID string) (*Session, error) {
 	return session, nil
 }
 
-// GetSession retrieves a session by ID
+// GetSession retrieves a session by ID. Returns ok=false if the session
+// doesn't exist. Use Authenticate when the caller is untrusted — GetSession
+// alone is not an authorization check.
 func (m *Manager) GetSession(sessionID string) (*Session, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	session, ok := m.sessions[sessionID]
 	return session, ok
+}
+
+// Authenticate validates a (sessionID, token) pair using a constant-time
+// comparison. Returns the session on success, ErrInvalidSessionToken on
+// any failure (missing session, wrong token, empty token). Empty tokens
+// always fail — there's no anonymous mode.
+func (m *Manager) Authenticate(sessionID, token string) (*Session, error) {
+	if sessionID == "" || token == "" {
+		return nil, ErrInvalidSessionToken
+	}
+	m.mu.RLock()
+	session, ok := m.sessions[sessionID]
+	m.mu.RUnlock()
+	if !ok {
+		return nil, ErrInvalidSessionToken
+	}
+	if subtle.ConstantTimeCompare([]byte(session.Token), []byte(token)) != 1 {
+		return nil, ErrInvalidSessionToken
+	}
+	return session, nil
 }
 
 // DestroySession terminates a session and cleans up resources

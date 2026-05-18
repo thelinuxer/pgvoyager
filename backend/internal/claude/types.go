@@ -11,6 +11,7 @@ import (
 // Session represents a Claude Code terminal session
 type Session struct {
 	ID           string
+	Token        string   // Per-session bearer token, required for MCP API + WS auth
 	ConnectionID string   // Active database connection ID
 	PTY          *os.File // PTY master file descriptor
 	Cmd          *exec.Cmd
@@ -76,7 +77,10 @@ type CreateSessionRequest struct {
 	ConnectionID string `json:"connectionId" binding:"required"`
 }
 
-// CreateSessionResponse returned after session creation
+// CreateSessionResponse returned after session creation. The Token is the
+// per-session bearer credential the frontend must use for the WS upgrade and
+// for any session-bound endpoint (destroy, update connection).
 type CreateSessionResponse struct {
 	SessionID string `json:"sessionId"`
+	Token     string `json:"token"`
 }

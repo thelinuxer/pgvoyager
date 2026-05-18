@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	backendURL string
-	sessionID  string
+	backendURL   string
+	sessionID    string
+	sessionToken string
 )
 
 func main() {
@@ -29,6 +30,15 @@ func main() {
 	sessionID = os.Getenv("PGVOYAGER_SESSION_ID")
 	if sessionID == "" {
 		fmt.Fprintln(os.Stderr, "PGVOYAGER_SESSION_ID environment variable not set")
+		os.Exit(1)
+	}
+
+	// Bearer token paired with the session ID. The backend rejects every
+	// MCP call without it; without this guard a sibling process on the
+	// host that learned the session ID could call the API directly.
+	sessionToken = os.Getenv("PGVOYAGER_SESSION_TOKEN")
+	if sessionToken == "" {
+		fmt.Fprintln(os.Stderr, "PGVOYAGER_SESSION_TOKEN environment variable not set")
 		os.Exit(1)
 	}
 
@@ -69,6 +79,7 @@ func callBackendAPI(ctx context.Context, method, endpoint string, body interface
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Claude-Session-ID", sessionID)
+	req.Header.Set("Authorization", "Bearer "+sessionToken)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)

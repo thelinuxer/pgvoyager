@@ -23,13 +23,18 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// HandleTerminalWebSocket handles WebSocket connections for terminal I/O
+// HandleTerminalWebSocket handles WebSocket connections for terminal I/O.
+// Authentication: the URL must carry `?token=<session-bearer>`. Browsers
+// don't allow setting custom headers on WebSocket connections, so a query
+// param is the practical option; Origin checking (in upgrader) blocks
+// cross-origin pages from grabbing it via XHR.
 func HandleTerminalWebSocket(c *gin.Context) {
 	sessionID := c.Param("id")
+	token := c.Query("token")
 
-	session, ok := GetManager().GetSession(sessionID)
-	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+	session, err := GetManager().Authenticate(sessionID, token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid session token"})
 		return
 	}
 

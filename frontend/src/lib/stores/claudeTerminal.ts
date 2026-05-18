@@ -43,6 +43,10 @@ export interface EditorState {
 
 interface ClaudeTerminalState {
 	sessionId: string | null;
+	// Per-session bearer token returned by POST /api/claude/sessions.
+	// Required for the WS upgrade and for every session-scoped REST call;
+	// kept in memory only (never persisted to localStorage).
+	token: string | null;
 	connectionId: string | null; // Track which connection this session is for
 	isConnected: boolean;
 	isConnecting: boolean;
@@ -52,6 +56,7 @@ interface ClaudeTerminalState {
 function createClaudeTerminalStore() {
 	const { subscribe, set, update } = writable<ClaudeTerminalState>({
 		sessionId: null,
+		token: null,
 		connectionId: null,
 		isConnected: false,
 		isConnecting: false,
@@ -105,6 +110,7 @@ function createClaudeTerminalStore() {
 			update((state) => ({
 				...state,
 				sessionId: data.sessionId,
+				token: data.token,
 				connectionId: connectionId
 			}));
 			return data.sessionId;
@@ -119,13 +125,17 @@ function createClaudeTerminalStore() {
 		const state = get({ subscribe });
 		if (!state.sessionId) return;
 
+		const sessionId = state.sessionId;
+		const token = state.token;
+
 		// Track the destroy operation so createSession can wait for it
 		const doDestroy = async () => {
 			disconnect();
 
 			try {
-				await fetch(`${getApiBase()}/api/claude/sessions/${state.sessionId}`, {
-					method: 'DELETE'
+				await fetch(`${getApiBase()}/api/claude/sessions/${sessionId}`, {
+					method: 'DELETE',
+					headers: token ? { Authorization: `Bearer ${token}` } : {}
 				});
 			} catch (e) {
 				console.error('Failed to destroy session:', e);
@@ -133,6 +143,7 @@ function createClaudeTerminalStore() {
 
 			set({
 				sessionId: null,
+				token: null,
 				connectionId: null,
 				isConnected: false,
 				isConnecting: false,
@@ -147,10 +158,14 @@ function createClaudeTerminalStore() {
 
 	// Update the session's database connection without restarting Claude
 	async function updateSessionConnection(sessionId: string, connectionId: string): Promise<boolean> {
+		const token = get({ subscribe }).token;
 		try {
 			const response = await fetch(`${getApiBase()}/api/claude/sessions/${sessionId}/connection`, {
 				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {
+					'Content-Type': 'application/json',
+					...(token ? { Authorization: `Bearer ${token}` } : {})
+				},
 				body: JSON.stringify({ connectionId })
 			});
 
@@ -196,15 +211,18 @@ function createClaudeTerminalStore() {
 
 	function connect(term: ITerminal): void {
 		const state = get({ subscribe });
-		if (!state.sessionId) {
-			update((s) => ({ ...s, error: 'No session ID' }));
+		if (!state.sessionId || !state.token) {
+			update((s) => ({ ...s, error: 'No session token' }));
 			return;
 		}
 
 		terminal = term;
 
-		// Create WebSocket connection
-		const wsUrl = `${getWsBase()}/api/claude/terminal/${state.sessionId}`;
+		// Create WebSocket connection. The token is required: browsers
+		// don't permit custom headers on WS, so it travels as a query
+		// param. Origin check on the server-side upgrader prevents a
+		// cross-origin page from reading it back out of the URL.
+		const wsUrl = `${getWsBase()}/api/claude/terminal/${state.sessionId}?token=${encodeURIComponent(state.token)}`;
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {

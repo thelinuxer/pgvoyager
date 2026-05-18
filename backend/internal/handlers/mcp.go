@@ -3,52 +3,62 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/thelinuxer/pgvoyager/internal/claude"
 	"github.com/thelinuxer/pgvoyager/internal/database"
+	"github.com/thelinuxer/pgvoyager/internal/dbsafe"
 )
 
-// getMCPPool gets the database pool for the current Claude session
-func getMCPPool(c *gin.Context) (*database.ConnectionManager, string, bool) {
+// authenticateMCP validates the bearer token + session ID on an MCP
+// request. The session ID is treated as a public-ish handle; the token
+// is the per-session secret. Both must match for the call to proceed.
+// Returns the live Claude session on success.
+func authenticateMCP(c *gin.Context) (*claude.Session, bool) {
 	sessionID := c.GetHeader("X-Claude-Session-ID")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Claude-Session-ID header"})
-		return nil, "", false
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing X-Claude-Session-ID header"})
+		return nil, false
 	}
+	auth := c.GetHeader("Authorization")
+	const prefix = "Bearer "
+	if !strings.HasPrefix(auth, prefix) {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing or malformed Authorization header"})
+		return nil, false
+	}
+	token := strings.TrimSpace(auth[len(prefix):])
+	session, err := claude.GetManager().Authenticate(sessionID, token)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid session token"})
+		return nil, false
+	}
+	return session, true
+}
 
-	// Get session to find the connection ID
-	claudeManager := claude.GetManager()
-	session, ok := claudeManager.GetSession(sessionID)
+// getMCPPool authenticates the request and resolves the database manager
+// + connection ID for the authenticated session.
+func getMCPPool(c *gin.Context) (*database.ConnectionManager, string, bool) {
+	session, ok := authenticateMCP(c)
 	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Claude session not found"})
 		return nil, "", false
 	}
-
-	// Get the database manager and check connection
 	dbManager := database.GetManager()
 	if !dbManager.IsConnected(session.ConnectionID) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Database not connected"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "database not connected"})
 		return nil, "", false
 	}
-
 	return dbManager, session.ConnectionID, true
 }
 
 // MCPGetConnectionInfo returns info about the current connection
 func MCPGetConnectionInfo(c *gin.Context) {
-	sessionID := c.GetHeader("X-Claude-Session-ID")
-	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Claude-Session-ID header"})
-		return
-	}
-
-	claudeManager := claude.GetManager()
-	session, ok := claudeManager.GetSession(sessionID)
+	session, ok := authenticateMCP(c)
 	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Claude session not found"})
 		return
 	}
 
@@ -351,7 +361,11 @@ func MCPGetColumns(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json", result)
 }
 
-// MCPExecuteQuery executes a SQL query
+// MCPExecuteQuery executes a SQL query against the active connection. By
+// default the query runs inside a `READ ONLY DEFERRABLE` transaction so
+// the LLM cannot accidentally (or maliciously) DROP/DELETE/UPDATE through
+// the MCP tool. Set `"allowWrites": true` in the request body to opt in
+// to a writable transaction.
 func MCPExecuteQuery(c *gin.Context) {
 	manager, connId, ok := getMCPPool(c)
 	if !ok {
@@ -359,8 +373,9 @@ func MCPExecuteQuery(c *gin.Context) {
 	}
 
 	var req struct {
-		SQL   string `json:"sql" binding:"required"`
-		Limit int    `json:"limit"`
+		SQL         string `json:"sql" binding:"required"`
+		Limit       int    `json:"limit"`
+		AllowWrites bool   `json:"allowWrites"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -379,9 +394,30 @@ func MCPExecuteQuery(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	rows, err := pool.Query(ctx, req.SQL)
+	txOpts := pgx.TxOptions{AccessMode: pgx.ReadOnly, DeferrableMode: pgx.Deferrable}
+	if req.AllowWrites {
+		txOpts = pgx.TxOptions{}
+	}
+	tx, err := pool.BeginTx(ctx, txOpts)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": dbsafe.SafeErrorMessage(err)})
+		return
+	}
+	defer func() {
+		// Always roll back. For read-only this is the only sensible
+		// outcome; for explicit writes we still want callers to be
+		// deliberate about persistence (they can use the main query
+		// endpoint for committed writes).
+		_ = tx.Rollback(context.Background())
+	}()
+
+	rows, err := tx.Query(ctx, req.SQL)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, context.DeadlineExceeded) {
+			status = http.StatusGatewayTimeout
+		}
+		c.JSON(status, gin.H{"error": dbsafe.SafeErrorMessage(err)})
 		return
 	}
 	defer rows.Close()

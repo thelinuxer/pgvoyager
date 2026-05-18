@@ -72,7 +72,15 @@ func main() {
 	// `--remote-allow-origins`. lorca v0.1.10 predates that change, so
 	// we pass the flag here. `*` is safe because the DevTools port
 	// lorca opens is itself loopback-only.
+	//
+	// `--class=PgVoyager` sets WM_CLASS on Linux so the installed
+	// .desktop entry (StartupWMClass=PgVoyager) matches and the dock /
+	// taskbar shows the PgVoyager elephant icon instead of the generic
+	// Chrome icon. The flag is harmless on macOS/Windows.
+	// lorca already passes its own `--user-data-dir` into a temp dir,
+	// so we don't need to manage profile isolation ourselves.
 	ui, err := lorca.New(backendURL+"/", "", 1280, 800,
+		"--class=PgVoyager",
 		"--remote-allow-origins=*",
 		"--disable-translate",
 		"--disable-features=TranslateUI",

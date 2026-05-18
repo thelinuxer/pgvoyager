@@ -9,14 +9,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/thelinuxer/pgvoyager/internal/security"
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	// Reject cross-origin upgrades. Default gorilla CheckOrigin (and the
+	// prior `return true`) made the PTY WebSocket reachable from any web
+	// page the user visited — classic CSWSH into a full shell.
 	CheckOrigin: func(r *http.Request) bool {
-		// Allow connections from localhost for development
-		return true
+		return security.AllowedOrigin(r.Header.Get("Origin"), r.Host)
 	},
 }
 

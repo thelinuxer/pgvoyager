@@ -28,6 +28,7 @@ func RegisterRoutes(r *gin.Engine) {
 		schema := api.Group("/schema/:connId")
 		{
 			schema.GET("/databases", handlers.ListDatabases)
+			schema.GET("/databases/sizes", handlers.ListDatabaseSizes)
 			schema.GET("/schemas", handlers.ListSchemas)
 			schema.GET("/tables", handlers.ListTables)
 			schema.GET("/tables/:schema/:table", handlers.GetTableInfo)

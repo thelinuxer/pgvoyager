@@ -122,6 +122,19 @@ INSERT INTO test_schema.order_items (order_id, product_id, quantity, unit_price)
   (5, 1, 1, 29.99),
   (6, 4, 3, 149.99);
 
+-- Temporal table for date/timestamp rendering tests
+CREATE TABLE test_schema.temporal_test (
+  id SERIAL PRIMARY KEY,
+  birth_date DATE NOT NULL,
+  event_at TIMESTAMP NOT NULL,
+  event_at_tz TIMESTAMPTZ NOT NULL,
+  event_time TIME NOT NULL
+);
+
+INSERT INTO test_schema.temporal_test (birth_date, event_at, event_at_tz, event_time) VALUES
+  ('1990-05-15', '2024-01-15 13:45:30', '2024-01-15 13:45:30+00', '13:45:30'),
+  ('1985-12-01', '2024-06-20 09:00:00', '2024-06-20 09:00:00+00', '09:00:00');
+
 -- Metadata table with JSON/JSONB/XML columns for data popup tests
 CREATE TABLE test_schema.metadata (
   id SERIAL PRIMARY KEY,

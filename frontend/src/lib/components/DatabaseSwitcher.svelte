@@ -11,6 +11,8 @@
 	let error = $state<string | null>(null);
 	let loadedForConnId = $state<string | null>(null);
 	let busyDatabase = $state<string | null>(null);
+	let sizes = $state<Record<string, string>>({});
+	let sizesLoading = $state(false);
 
 	let contextMenu = $state<{ database: string; x: number; y: number } | null>(null);
 
@@ -39,6 +41,7 @@
 		if (!$activeConnectionId) return;
 		isLoading = true;
 		error = null;
+		sizes = {};
 		try {
 			const list = await schemaApi.listDatabases($activeConnectionId);
 			databases = list || [];
@@ -46,6 +49,26 @@
 			error = e instanceof Error ? e.message : 'Failed to load databases';
 		} finally {
 			isLoading = false;
+		}
+		// Fetch sizes lazily after names render so the panel isn't blocked
+		// by pg_database_size, which is expensive on big servers.
+		loadSizes();
+	}
+
+	async function loadSizes() {
+		if (!$activeConnectionId || sizesLoading) return;
+		sizesLoading = true;
+		const connId = $activeConnectionId;
+		try {
+			const list = await schemaApi.listDatabaseSizes(connId);
+			if (connId !== $activeConnectionId) return; // switched away while waiting
+			const map: Record<string, string> = {};
+			for (const s of list || []) map[s.name] = s.size;
+			sizes = map;
+		} catch {
+			// Size load failure is non-fatal: panel still works without sizes.
+		} finally {
+			sizesLoading = false;
 		}
 	}
 
@@ -247,8 +270,10 @@
 								<span class="db-marker" aria-hidden="true"></span>
 								<Icon name={isBusy ? 'refresh' : 'database'} size={12} class={isBusy ? 'spinning' : ''} />
 								<span class="db-name">{db.name}</span>
-								{#if db.size}
-									<span class="db-meta">{db.size}</span>
+								{#if sizes[db.name]}
+									<span class="db-meta" data-testid="database-size-{db.name}">{sizes[db.name]}</span>
+								{:else if sizesLoading}
+									<span class="db-meta db-meta-pending" data-testid="database-size-loading-{db.name}">…</span>
 								{/if}
 							</button>
 							<button
@@ -579,6 +604,10 @@
 	.db-meta {
 		font-size: 10px;
 		color: var(--color-text-dim);
+	}
+
+	.db-meta-pending {
+		opacity: 0.5;
 	}
 
 	.db-row-kebab {

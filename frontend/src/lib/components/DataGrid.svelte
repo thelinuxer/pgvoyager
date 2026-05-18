@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ColumnInfo } from '$lib/types';
+	import { formatCellValue } from '$lib/utils/format';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
@@ -92,14 +93,7 @@
 	let showingStart = $derived((page - 1) * pageSize + 1);
 	let showingEnd = $derived(Math.min(page * pageSize, totalRows));
 
-	function formatValue(value: unknown): string {
-		if (value === null) return 'NULL';
-		if (value === undefined) return '';
-		if (typeof value === 'object') {
-			return JSON.stringify(value);
-		}
-		return String(value);
-	}
+	const formatValue = formatCellValue;
 
 	function isDataColumn(dataType: string): boolean {
 		const lowerType = dataType.toLowerCase();
@@ -233,7 +227,7 @@
 											use:focusOnMount
 										/>
 									{:else}
-										{formatValue(row[col.name])}
+										{formatValue(row[col.name], col.dataType)}
 									{/if}
 								</td>
 							{/each}

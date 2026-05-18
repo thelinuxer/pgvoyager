@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ForeignKeyPreview } from '$lib/types';
+	import { formatCellValue } from '$lib/utils/format';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
@@ -17,14 +18,7 @@
 	let adjustedX = $derived(Math.min(x + 10, window.innerWidth - 400));
 	let adjustedY = $derived(Math.min(y + 10, window.innerHeight - 300));
 
-	function formatValue(value: unknown): string {
-		if (value === null) return 'NULL';
-		if (value === undefined) return '';
-		if (typeof value === 'object') {
-			return JSON.stringify(value);
-		}
-		return String(value);
-	}
+	const formatValue = formatCellValue;
 </script>
 
 <div
@@ -51,7 +45,7 @@
 								{col.name}
 							</td>
 							<td class="fk-col-value" class:null={preview.row[col.name] === null}>
-								{formatValue(preview.row[col.name])}
+								{formatValue(preview.row[col.name], col.dataType)}
 							</td>
 						</tr>
 					{/each}

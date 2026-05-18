@@ -136,6 +136,9 @@ export const connectionApi = {
 export const schemaApi = {
 	listDatabases: (connId: string) => fetchAPI<Database[]>(`/schema/${connId}/databases`),
 
+	listDatabaseSizes: (connId: string) =>
+		fetchAPI<{ name: string; size: string }[]>(`/schema/${connId}/databases/sizes`),
+
 	listSchemas: (connId: string) => fetchAPI<Schema[]>(`/schema/${connId}/schemas`),
 
 	listTables: (connId: string, schema?: string) => {

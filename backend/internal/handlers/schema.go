@@ -30,14 +30,15 @@ func ListDatabases(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Lightweight listing: skips pg_database_size (which scans every file in
+	// each DB dir) and table_count (which would require connecting to each DB).
+	// Sizes are fetched on demand by ListDatabaseSizes.
 	query := `
 		SELECT
 			d.datname as name,
 			pg_catalog.pg_get_userbyid(d.datdba) as owner,
 			pg_catalog.pg_encoding_to_char(d.encoding) as encoding,
-			d.datcollate as collation,
-			pg_catalog.pg_size_pretty(pg_catalog.pg_database_size(d.datname)) as size,
-			(SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')) as table_count
+			d.datcollate as collation
 		FROM pg_catalog.pg_database d
 		WHERE d.datistemplate = false
 		ORDER BY d.datname
@@ -50,10 +51,10 @@ func ListDatabases(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var databases []models.Database
+	databases := []models.Database{}
 	for rows.Next() {
 		var db models.Database
-		if err := rows.Scan(&db.Name, &db.Owner, &db.Encoding, &db.Collation, &db.Size, &db.TableCount); err != nil {
+		if err := rows.Scan(&db.Name, &db.Owner, &db.Encoding, &db.Collation); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -61,6 +62,52 @@ func ListDatabases(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, databases)
+}
+
+// ListDatabaseSizes returns pg_database_size for every non-template database.
+// Split from ListDatabases so the initial panel render isn't blocked by the
+// per-DB file scan that pg_database_size performs.
+func ListDatabaseSizes(c *gin.Context) {
+	manager, connId, ok := getPool(c)
+	if !ok {
+		return
+	}
+
+	pool, _ := manager.GetPool(connId)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT
+			d.datname as name,
+			pg_catalog.pg_size_pretty(pg_catalog.pg_database_size(d.datname)) as size
+		FROM pg_catalog.pg_database d
+		WHERE d.datistemplate = false
+		ORDER BY d.datname
+	`
+
+	rows, err := pool.Query(ctx, query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type sizeEntry struct {
+		Name string `json:"name"`
+		Size string `json:"size"`
+	}
+	sizes := []sizeEntry{}
+	for rows.Next() {
+		var s sizeEntry
+		if err := rows.Scan(&s.Name, &s.Size); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		sizes = append(sizes, s)
+	}
+
+	c.JSON(http.StatusOK, sizes)
 }
 
 func ListSchemas(c *gin.Context) {

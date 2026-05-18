@@ -3,6 +3,7 @@
 	import { activeConnectionId } from '$lib/stores/connections';
 	import { schemaApi, dataApi } from '$lib/api/client';
 	import type { Tab, View, TableDataResponse } from '$lib/types';
+	import { formatCellValue } from '$lib/utils/format';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	interface Props {
@@ -54,14 +55,7 @@
 		loadView();
 	}
 
-	function formatValue(value: unknown): string {
-		if (value === null) return 'NULL';
-		if (value === undefined) return '';
-		if (typeof value === 'object') {
-			return JSON.stringify(value);
-		}
-		return String(value);
-	}
+	const formatValue = formatCellValue;
 </script>
 
 <div class="view-viewer">
@@ -127,7 +121,7 @@
 						<tr>
 							{#each data.columns as col}
 								<td class:null-value={row[col.name] === null}>
-									{formatValue(row[col.name])}
+									{formatValue(row[col.name], col.dataType)}
 								</td>
 							{/each}
 						</tr>

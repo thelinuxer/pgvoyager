@@ -13,17 +13,60 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/thelinuxer/pgvoyager/internal/dbsafe"
 	"github.com/thelinuxer/pgvoyager/internal/models"
 )
 
 var identifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
-// convertValue converts []byte values (e.g. XML columns) to string
-// so they aren't base64-encoded in JSON responses.
+// convertValue normalizes pgx-returned values so the JSON response is
+// the form the frontend already knows how to render:
+//
+//   - []byte (e.g. XML) → string (otherwise base64-encoded).
+//   - pgtype.Time → "HH:MM:SS[.ffffff]" string. By default pgx hands
+//     these back as {Microseconds, Valid} which serializes as an opaque
+//     JSON object that the DataGrid's temporal formatter can't parse.
+//   - pgtype.Interval → "HHHH:MM:SS" string for the same reason.
+//
+// Other temporal types (date / timestamp / timestamptz) already arrive
+// as time.Time and serialize to RFC3339 — the DataGrid formats those
+// itself.
 func convertValue(v any) any {
-	if b, ok := v.([]byte); ok {
-		return string(b)
+	switch x := v.(type) {
+	case []byte:
+		return string(x)
+	case pgtype.Time:
+		if !x.Valid {
+			return nil
+		}
+		us := x.Microseconds
+		hours := us / 3_600_000_000
+		us -= hours * 3_600_000_000
+		mins := us / 60_000_000
+		us -= mins * 60_000_000
+		secs := us / 1_000_000
+		us -= secs * 1_000_000
+		if us == 0 {
+			return fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
+		}
+		return fmt.Sprintf("%02d:%02d:%02d.%06d", hours, mins, secs, us)
+	case pgtype.Interval:
+		if !x.Valid {
+			return nil
+		}
+		// Render as ISO-ish "PnDThh:mm:ss" only when meaningful;
+		// otherwise just the time portion.
+		totalUs := x.Microseconds
+		hours := totalUs / 3_600_000_000
+		totalUs -= hours * 3_600_000_000
+		mins := totalUs / 60_000_000
+		totalUs -= mins * 60_000_000
+		secs := totalUs / 1_000_000
+		if x.Days == 0 && x.Months == 0 {
+			return fmt.Sprintf("%02d:%02d:%02d", hours, mins, secs)
+		}
+		return fmt.Sprintf("%d months %d days %02d:%02d:%02d", x.Months, x.Days, hours, mins, secs)
 	}
 	return v
 }

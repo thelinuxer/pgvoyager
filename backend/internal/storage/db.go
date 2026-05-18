@@ -29,26 +29,50 @@ func GetDB() (*sql.DB, error) {
 		}
 
 		dbPath := filepath.Join(pgvoyagerDir, "pgvoyager.db")
-		db, err = sql.Open("sqlite", dbPath)
-		if err != nil {
-			return
-		}
 
-		// Tighten file perms — the DB contains plaintext connection
-		// passwords. SQLite respects the user's umask on file create,
-		// which is typically 0644 (world-readable). Force 0600 so
-		// other accounts on the host can't read it.
-		if err = secretstore.SecureFile(dbPath); err != nil {
-			return
-		}
+		// Open + initialize the DB under a 0077 umask so the SQLite
+		// file (and its WAL / journal sidecars created later by libc)
+		// are born 0600. Post-creation chmod was the prior approach
+		// and it tripped SQLITE_READONLY_DBMOVED on modernc.org/sqlite
+		// — the library noticed the inode mode change between the
+		// initial Open and the first write and refused subsequent
+		// writes.
+		err = secretstore.WithSecretUmask(func() error {
+			var openErr error
+			db, openErr = sql.Open("sqlite", dbPath)
+			if openErr != nil {
+				return openErr
+			}
+			if _, e := db.Exec(schema); e != nil {
+				return e
+			}
+			return migrateFromJSON(pgvoyagerDir)
+		})
 
-		if _, err = db.Exec(schema); err != nil {
-			return
+		// Defensive belt-and-suspenders: if the file already existed
+		// from a pre-umask install at 0644, tighten it now. Skipping
+		// the chmod when perms are already <= 0600 avoids tripping
+		// the same DBMOVED detection on a fresh DB.
+		if err == nil {
+			_ = tightenIfWorldReadable(dbPath)
 		}
-
-		err = migrateFromJSON(pgvoyagerDir)
 	})
 	return db, err
+}
+
+// tightenIfWorldReadable lowers the DB file to 0600 only when it's
+// currently more permissive. No-op on already-tight files so we don't
+// chmod the file on every cold start (which could race with libsqlite's
+// inode tracking).
+func tightenIfWorldReadable(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode().Perm() <= secretstore.FilePerm {
+		return nil
+	}
+	return secretstore.SecureFile(path)
 }
 
 // migrateFromJSON migrates data from the legacy connections.json file. After

@@ -60,6 +60,19 @@ func SecureFile(path string) error {
 	return nil
 }
 
+// WithSecretUmask installs an `umask 0077` for the duration of fn and
+// restores the previous value afterwards. Use around code paths that
+// create secret files (sqlite DB + its WAL/journal sidecars, temp
+// credential files) so they're born 0600 instead of needing a post-
+// creation chmod. Post-creation chmod is racy with libsqlite's inode-
+// movement detection — fresh files trigger SQLITE_READONLY_DBMOVED
+// on the next write under modernc.org/sqlite.
+func WithSecretUmask(fn func() error) error {
+	old := setUmask(secretUmask)
+	defer setUmask(old)
+	return fn()
+}
+
 // ShredAndRemove best-effort overwrites a file with zeros before deleting
 // it. Used for the connections.json migration backup, which contained
 // plaintext passwords and was previously left on disk indefinitely.

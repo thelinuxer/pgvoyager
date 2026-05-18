@@ -111,6 +111,17 @@ func Run(ctx context.Context, chromePath string, opt Options) error {
 		"--disable-popup-blocking",
 	}
 	if opt.AppClass != "" {
+		// On X11, --class sets WM_CLASS, which is what the
+		// installed .desktop entry's StartupWMClass field matches
+		// against to attach the correct icon. On Wayland, --class
+		// is ignored (the app_id is derived from the .desktop
+		// filename), so we also force Chrome to run under XWayland
+		// via --ozone-platform=x11. Without this, Ubuntu 24.04 +
+		// GNOME Shell shows the dock entry under Chrome's icon
+		// instead of the PgVoyager elephant.
+		if runtime.GOOS == "linux" {
+			args = append(args, "--ozone-platform=x11")
+		}
 		args = append(args, "--class="+opt.AppClass)
 	}
 	args = append(args, opt.Extra...)

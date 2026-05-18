@@ -3,13 +3,15 @@ package database
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sync"
 	"time"
 
-	"github.com/thelinuxer/pgvoyager/internal/models"
-	"github.com/thelinuxer/pgvoyager/internal/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/thelinuxer/pgvoyager/internal/dbsafe"
+	"github.com/thelinuxer/pgvoyager/internal/models"
+	"github.com/thelinuxer/pgvoyager/internal/storage"
 )
 
 var (
@@ -235,15 +237,27 @@ func (m *ConnectionManager) buildConnString(conn *models.Connection) string {
 	if database == "" {
 		database = models.DefaultDatabase
 	}
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		conn.Username,
-		conn.Password,
-		conn.Host,
-		conn.Port,
-		database,
-		conn.SSLMode,
-	)
+	return buildPostgresURL(conn.Username, conn.Password, conn.Host, conn.Port, database, conn.SSLMode)
+}
+
+// buildPostgresURL composes a postgres:// connection URL with every
+// user-controlled component URL-encoded. Without encoding, a `:`, `@`, `/`,
+// or `?` in a password or database name could redirect to a different host
+// or corrupt the connection string in ways that surface as confusing
+// (and potentially credential-leaking) pgx parse errors.
+func buildPostgresURL(user, password, host string, port int, database, sslMode string) string {
+	u := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, password),
+		Host:   fmt.Sprintf("%s:%d", host, port),
+		Path:   "/" + database,
+	}
+	q := url.Values{}
+	if sslMode != "" {
+		q.Set("sslmode", sslMode)
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func (m *ConnectionManager) TestConnection(req *models.TestConnectionRequest) error {
@@ -251,15 +265,7 @@ func (m *ConnectionManager) TestConnection(req *models.TestConnectionRequest) er
 	if database == "" {
 		database = models.DefaultDatabase
 	}
-	connStr := fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		req.Username,
-		req.Password,
-		req.Host,
-		req.Port,
-		database,
-		req.SSLMode,
-	)
+	connStr := buildPostgresURL(req.Username, req.Password, req.Host, req.Port, database, req.SSLMode)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -437,23 +443,6 @@ func (m *ConnectionManager) SwitchDatabase(id, dbName string) (*models.Connectio
 	return &connCopy, nil
 }
 
-// pgQuoteIdent quotes a Postgres identifier for safe inclusion in DDL.
-// Postgres doesn't support parameter binding for database/role names, so we
-// must hand-quote them. Double any embedded `"` and wrap in `"`.
-func pgQuoteIdent(s string) string {
-	out := make([]byte, 0, len(s)+2)
-	out = append(out, '"')
-	for i := 0; i < len(s); i++ {
-		if s[i] == '"' {
-			out = append(out, '"', '"')
-		} else {
-			out = append(out, s[i])
-		}
-	}
-	out = append(out, '"')
-	return string(out)
-}
-
 // CreateDatabase issues CREATE DATABASE on the server via the connection's
 // current pool. Requires CREATEDB privilege.
 func (m *ConnectionManager) CreateDatabase(id string, req *models.CreateDatabaseRequest) error {
@@ -462,15 +451,36 @@ func (m *ConnectionManager) CreateDatabase(id string, req *models.CreateDatabase
 		return err
 	}
 
-	sql := "CREATE DATABASE " + pgQuoteIdent(req.Name)
+	nameQ, err := dbsafe.QuoteIdent(req.Name)
+	if err != nil {
+		return fmt.Errorf("invalid database name: %w", err)
+	}
+	sql := "CREATE DATABASE " + nameQ
 	if req.Owner != "" {
-		sql += " OWNER " + pgQuoteIdent(req.Owner)
+		ownerQ, err := dbsafe.QuoteIdent(req.Owner)
+		if err != nil {
+			return fmt.Errorf("invalid owner: %w", err)
+		}
+		sql += " OWNER " + ownerQ
 	}
 	if req.Template != "" {
-		sql += " TEMPLATE " + pgQuoteIdent(req.Template)
+		templateQ, err := dbsafe.QuoteIdent(req.Template)
+		if err != nil {
+			return fmt.Errorf("invalid template: %w", err)
+		}
+		sql += " TEMPLATE " + templateQ
 	}
 	if req.Encoding != "" {
-		sql += " ENCODING " + pgQuoteIdent(req.Encoding)
+		// ENCODING takes a string literal, not an identifier. Validate
+		// against a closed set so we can emit it as `'UTF8'` safely.
+		if !dbsafe.ValidEncoding(req.Encoding) {
+			return fmt.Errorf("invalid encoding: %s", req.Encoding)
+		}
+		encQ, err := dbsafe.QuoteString(req.Encoding)
+		if err != nil {
+			return fmt.Errorf("invalid encoding: %w", err)
+		}
+		sql += " ENCODING " + encQ
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -526,7 +536,11 @@ func (m *ConnectionManager) DropDatabase(id, dbName string, force bool) error {
 		}
 	}
 
-	if _, err := pool.Exec(ctx, "DROP DATABASE "+pgQuoteIdent(dbName)); err != nil {
+	dbNameQ, err := dbsafe.QuoteIdent(dbName)
+	if err != nil {
+		return fmt.Errorf("invalid database name: %w", err)
+	}
+	if _, err := pool.Exec(ctx, "DROP DATABASE "+dbNameQ); err != nil {
 		return err
 	}
 	return nil

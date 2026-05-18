@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/thelinuxer/pgvoyager/internal/dbsafe"
 	"github.com/thelinuxer/pgvoyager/internal/models"
 )
 
@@ -204,7 +205,16 @@ func buildErrorResult(err error, duration float64, positionOffset int) models.Qu
 }
 
 func quoteIdentifier(s string) string {
-	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	// Defensive: at every call site we've already run isValidIdentifier,
+	// which rejects NUL. dbsafe.QuoteIdent re-checks so any new caller
+	// that forgets the upstream validation still can't smuggle NUL.
+	q, err := dbsafe.QuoteIdent(s)
+	if err != nil {
+		// isValidIdentifier guarantees no NUL — if we got here the
+		// invariant is broken in a way the caller can't recover from.
+		panic(fmt.Sprintf("quoteIdentifier: %v", err))
+	}
+	return q
 }
 
 func GetTableData(c *gin.Context) {
@@ -1176,12 +1186,25 @@ func CreateTable(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid column name: %s", col.Name)})
 			return
 		}
+		// col.Type and col.Default are user-supplied SQL fragments that
+		// pgx can't parameter-bind into DDL. Use a strict character
+		// whitelist on the type, and require single-statement / no
+		// comment markers on the default expression. Without these
+		// checks a crafted JSON body could append arbitrary SQL.
+		if !dbsafe.ValidColumnType(col.Type) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid column type: %s", col.Type)})
+			return
+		}
 
 		def := fmt.Sprintf("%s %s", quoteIdentifier(col.Name), col.Type)
 		if !col.Nullable {
 			def += " NOT NULL"
 		}
 		if col.Default != nil && *col.Default != "" {
+			if err := dbsafe.AssertNoStatementBreakout(*col.Default); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid default expression: %v", err)})
+				return
+			}
 			def += " DEFAULT " + *col.Default
 		}
 		colDefs = append(colDefs, def)
@@ -1311,10 +1334,20 @@ func AddConstraint(c *gin.Context) {
 			strings.Join(quotedRefCols, ", "))
 
 		if req.OnDelete != "" {
-			ddl += " ON DELETE " + req.OnDelete
+			action, err := dbsafe.CanonicalFKAction(req.OnDelete)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			ddl += " ON DELETE " + action
 		}
 		if req.OnUpdate != "" {
-			ddl += " ON UPDATE " + req.OnUpdate
+			action, err := dbsafe.CanonicalFKAction(req.OnUpdate)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			ddl += " ON UPDATE " + action
 		}
 
 	case "unique":
@@ -1336,6 +1369,10 @@ func AddConstraint(c *gin.Context) {
 	case "check":
 		if req.Expression == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "CHECK constraint requires an expression"})
+			return
+		}
+		if err := dbsafe.AssertNoStatementBreakout(req.Expression); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid CHECK expression: %v", err)})
 			return
 		}
 

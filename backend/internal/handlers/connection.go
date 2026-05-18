@@ -3,10 +3,15 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/thelinuxer/pgvoyager/internal/database"
-	"github.com/thelinuxer/pgvoyager/internal/models"
 	"github.com/gin-gonic/gin"
+	"github.com/thelinuxer/pgvoyager/internal/database"
+	"github.com/thelinuxer/pgvoyager/internal/dbsafe"
+	"github.com/thelinuxer/pgvoyager/internal/models"
 )
+
+// safeErr is a thin wrapper over dbsafe.SafeErrorMessage so handlers don't
+// have to import the package just for one call.
+func safeErr(err error) string { return dbsafe.SafeErrorMessage(err) }
 
 func ListConnections(c *gin.Context) {
 	manager := database.GetManager()
@@ -23,7 +28,7 @@ func CreateConnection(c *gin.Context) {
 
 	conn, err := database.GetManager().Create(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": safeErr(err)})
 		return
 	}
 
@@ -42,7 +47,7 @@ func TestConnection(c *gin.Context) {
 	}
 
 	if err := database.GetManager().TestConnection(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"error": safeErr(err), "success": false})
 		return
 	}
 
@@ -53,7 +58,7 @@ func GetConnection(c *gin.Context) {
 	id := c.Param("id")
 	conn, err := database.GetManager().Get(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": safeErr(err)})
 		return
 	}
 	c.JSON(http.StatusOK, conn)
@@ -69,7 +74,7 @@ func UpdateConnection(c *gin.Context) {
 
 	conn, err := database.GetManager().Update(id, &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": safeErr(err)})
 		return
 	}
 
@@ -79,7 +84,7 @@ func UpdateConnection(c *gin.Context) {
 func DeleteConnection(c *gin.Context) {
 	id := c.Param("id")
 	if err := database.GetManager().Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": safeErr(err)})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Connection deleted"})
@@ -88,7 +93,7 @@ func DeleteConnection(c *gin.Context) {
 func Connect(c *gin.Context) {
 	id := c.Param("id")
 	if err := database.GetManager().Connect(id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": safeErr(err)})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Connected successfully"})
@@ -97,7 +102,7 @@ func Connect(c *gin.Context) {
 func Disconnect(c *gin.Context) {
 	id := c.Param("id")
 	if err := database.GetManager().Disconnect(id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": safeErr(err)})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Disconnected successfully"})
@@ -113,7 +118,7 @@ func SwitchDatabase(c *gin.Context) {
 
 	conn, err := database.GetManager().SwitchDatabase(id, req.Database)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": safeErr(err)})
 		return
 	}
 
@@ -129,7 +134,7 @@ func CreateDatabase(c *gin.Context) {
 	}
 
 	if err := database.GetManager().CreateDatabase(id, &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": safeErr(err)})
 		return
 	}
 
@@ -146,7 +151,7 @@ func DropDatabase(c *gin.Context) {
 	}
 
 	if err := database.GetManager().DropDatabase(id, dbName, req.Force); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": safeErr(err)})
 		return
 	}
 

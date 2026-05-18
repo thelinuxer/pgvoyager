@@ -25,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.23'
           cache-dependency-path: backend/go.sum
 
       - name: Install frontend dependencies
@@ -147,108 +147,8 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
 
-  # Native desktop bundles (Wails). Each runner builds for its own OS —
-  # Wails needs CGO + the platform webview SDK, so cross-compiling from a
-  # single Linux runner isn't an option. Failure of any one matrix entry
-  # is non-fatal; the headless release still ships from the build /
-  # package-linux-windows jobs above.
-  desktop:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            platform: linux/amd64
-            archive: pgvoyager-desktop-linux-amd64.tar.gz
-          - os: macos-latest
-            platform: darwin/universal
-            archive: pgvoyager-desktop-darwin-universal.zip
-          - os: windows-latest
-            platform: windows/amd64
-            archive: pgvoyager-desktop-windows-amd64.zip
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache-dependency-path: backend/go.sum
-
-      - name: Install Linux webview deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
-
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
-      - name: Copy frontend to embed path
-        shell: bash
-        run: |
-          rm -rf backend/web/dist/*
-          cp -r frontend/build/* backend/web/dist/
-
-      - name: Wails build
-        working-directory: backend/cmd/desktop
-        env:
-          VERSION: ${{ github.ref_name }}
-          LDFLAGS: -s -w -X github.com/thelinuxer/pgvoyager/internal/version.Version=${{ github.ref_name }}
-        run: wails build -platform ${{ matrix.platform }} -ldflags "${LDFLAGS}" -trimpath
-
-      - name: Package Linux bundle
-        if: runner.os == 'Linux'
-        run: |
-          cd backend/cmd/desktop/build/bin
-          tar -czvf ${{ matrix.archive }} pgvoyager-desktop
-          mkdir -p ${{ github.workspace }}/desktop-dist
-          mv ${{ matrix.archive }} ${{ github.workspace }}/desktop-dist/
-
-      - name: Package macOS bundle
-        if: runner.os == 'macOS'
-        run: |
-          cd backend/cmd/desktop/build/bin
-          # `wails build` for darwin produces a .app bundle, not a bare binary.
-          zip -r ${{ matrix.archive }} pgvoyager.app
-          mkdir -p ${{ github.workspace }}/desktop-dist
-          mv ${{ matrix.archive }} ${{ github.workspace }}/desktop-dist/
-
-      - name: Package Windows bundle
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cd backend/cmd/desktop/build/bin
-          Compress-Archive -Path pgvoyager-desktop.exe -DestinationPath ${{ matrix.archive }}
-          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}/desktop-dist" | Out-Null
-          Move-Item -Path ${{ matrix.archive }} -Destination "${{ github.workspace }}/desktop-dist/"
-
-      - name: Upload desktop bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ runner.os }}
-          path: desktop-dist/*
-          if-no-files-found: warn
-
   release:
-    needs: [package-linux-windows, desktop]
-    if: always() && needs.package-linux-windows.result == 'success'
+    needs: package-linux-windows
     runs-on: ubuntu-latest
     steps:
       - name: Download Linux/Windows packages
@@ -262,25 +162,9 @@ jobs:
         with:
           name: build-artifacts
 
-      # Best-effort: desktop bundles may be absent if the matrix job hit
-      # a runner-specific issue. The release still publishes the headless
-      # binaries in that case.
-      - name: Download desktop bundles
-        uses: actions/download-artifact@v4
-        with:
-          pattern: desktop-*
-          path: desktop-dist/
-          merge-multiple: true
-
-      - name: List desktop bundles
-        run: ls -lh desktop-dist/ || echo "no desktop bundles produced"
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          # softprops/action-gh-release@v2 silently skips missing files,
-          # so listing the desktop bundles here is safe even when a
-          # matrix runner failed.
           files: |
             dist/pgvoyager-linux-amd64.tar.gz
             dist/pgvoyager-linux-arm64.tar.gz
@@ -295,7 +179,4 @@ jobs:
             releases/pgvoyager-mcp-darwin-amd64
             releases/pgvoyager-mcp-darwin-arm64
             releases/pgvoyager-mcp-windows-amd64.exe
-            desktop-dist/pgvoyager-desktop-linux-amd64.tar.gz
-            desktop-dist/pgvoyager-desktop-darwin-universal.zip
-            desktop-dist/pgvoyager-desktop-windows-amd64.zip
           generate_release_notes: true

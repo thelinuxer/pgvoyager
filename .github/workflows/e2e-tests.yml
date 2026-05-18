@@ -9,7 +9,7 @@ on:
 
 env:
   NODE_VERSION: '20'
-  GO_VERSION: '1.25'
+  GO_VERSION: '1.21'
 
 # Permissions needed for test-reporter to create check runs
 permissions:

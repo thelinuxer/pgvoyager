@@ -1,4 +1,0 @@
-# Reserved for Wails AssetServer.Assets — the embed.FS must point at a
-# non-empty directory or `go:embed` fails. The bootstrap handler in
-# main.go produces a redirect page at runtime so no real assets ship
-# here.

@@ -79,7 +79,12 @@ func (m *SavedQueryManager) saveQueries() error {
 		return err
 	}
 
-	return os.WriteFile(m.configPath, data, 0600)
+	if err := os.WriteFile(m.configPath, data, secretstore.FilePerm); err != nil {
+		return err
+	}
+	// Enforce the correct mode even if the file pre-existed with a looser
+	// permission (e.g. created before this policy was introduced).
+	return secretstore.SecureFile(m.configPath)
 }
 
 func (m *SavedQueryManager) List() []*models.SavedQuery {

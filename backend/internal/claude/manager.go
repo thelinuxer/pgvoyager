@@ -289,13 +289,29 @@ func fetchDatabaseContext(connectionID string) (*DatabaseContext, error) {
 	return dbContext, nil
 }
 
+// stripControl removes ASCII control characters (0x00–0x1F and 0x7F) including
+// CR and LF from s. Applied to all DB-sourced strings interpolated into the
+// Claude --append-system-prompt argument to prevent prompt injection via
+// maliciously crafted database/schema/table names.
+func stripControl(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7F {
+			return -1
+		}
+		return r
+	}, s)
+}
+
 // buildSystemPrompt creates a system prompt with database context
 func buildSystemPrompt(dbContext *DatabaseContext) string {
 	var sb strings.Builder
 
+	dbName := stripControl(dbContext.Name)
+	dbHost := stripControl(dbContext.Host)
+
 	sb.WriteString("You are a PostgreSQL database assistant integrated with PgVoyager.\n\n")
 	sb.WriteString(fmt.Sprintf("Initially connected to database: %s (host: %s, port: %d)\n",
-		dbContext.Name, dbContext.Host, dbContext.Port))
+		dbName, dbHost, dbContext.Port))
 	sb.WriteString("Note: The user may switch database connections during our conversation. Use get_connection_info to check the current connection.\n\n")
 
 	if len(dbContext.Schemas) > 0 {
@@ -312,7 +328,7 @@ func buildSystemPrompt(dbContext *DatabaseContext) string {
 		// Only list schema names with table counts (not individual tables)
 		sb.WriteString("Schemas:\n")
 		for _, schema := range dbContext.Schemas {
-			sb.WriteString(fmt.Sprintf("  - %s (%d tables)\n", schema.Name, len(schema.Tables)))
+			sb.WriteString(fmt.Sprintf("  - %s (%d tables)\n", stripControl(schema.Name), len(schema.Tables)))
 		}
 		sb.WriteString("\nUse list_tables and get_columns tools to explore table details.\n\n")
 	}

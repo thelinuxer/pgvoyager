@@ -37,7 +37,7 @@
 		if (restarting) return;
 		restarting = true;
 		try {
-			await updateApi.restart();
+			await updateApi.restart(update?.restartToken);
 			// Backend swaps + relaunches; this window will be torn down.
 		} catch {
 			restarting = false;

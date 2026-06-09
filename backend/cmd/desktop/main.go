@@ -43,6 +43,9 @@ func main() {
 	}
 
 	host := security.ListenHost()
+	if !security.IsLoopback(host) {
+		log.Printf("[SECURITY WARNING] PgVoyager is bound to a non-loopback address (%s); the API has no auth beyond origin checks — firewall this port", host)
+	}
 	listener, err := net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		log.Fatalf("listen: %v", err)
@@ -113,17 +116,21 @@ func buildRouter() *gin.Engine {
 	r.Use(security.SecurityHeaders())
 	r.Use(security.MaxBodyBytes(security.MaxRequestBodyBytes))
 	r.Use(security.OriginGuard())
-	// Dev allowlist kept so a developer can `npm run dev` the frontend
-	// against a running desktop binary; the desktop bundle itself is
-	// single-origin so CORS isn't required in normal use.
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     security.DevOrigins(),
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Claude-Session-ID"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: false,
-		MaxAge:           12 * time.Hour,
-	}))
+	// Dev CORS allowlist: only installed in non-production mode so that a
+	// developer can `npm run dev` the frontend against a running desktop
+	// binary. The desktop bundle is single-origin in production and does
+	// not require CORS. Mirror the same gate used by cmd/server/main.go.
+	isProd := os.Getenv("PGVOYAGER_MODE") == "production"
+	if !isProd {
+		r.Use(cors.New(cors.Config{
+			AllowOrigins:     security.DevOrigins(),
+			AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+			AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Claude-Session-ID"},
+			ExposeHeaders:    []string{"Content-Length"},
+			AllowCredentials: false,
+			MaxAge:           12 * time.Hour,
+		}))
+	}
 	r.Use(static.ServeEmbedded(web.StaticFiles, "dist"))
 	api.RegisterRoutes(r)
 	// Desktop-only: the mutating restart route lives here so the headless

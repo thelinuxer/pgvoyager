@@ -9,10 +9,21 @@ import (
 	"syscall"
 )
 
+// pkexecPath returns the absolute path to pkexec, preferring known fixed
+// locations over $PATH to prevent a user-writable PATH entry from shadowing it.
+func pkexecPath() (string, error) {
+	for _, p := range []string{"/usr/bin/pkexec", "/bin/pkexec"} {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			return p, nil
+		}
+	}
+	return exec.LookPath("pkexec")
+}
+
 // canElevate reports whether a GUI privilege-escalation path is available:
 // pkexec (polkit) plus coreutils `install` for the destination-safe copy.
 func canElevate() bool {
-	if _, err := exec.LookPath("pkexec"); err != nil {
+	if _, err := pkexecPath(); err != nil {
 		return false
 	}
 	if _, err := exec.LookPath("install"); err != nil {
@@ -51,7 +62,11 @@ func elevatedReplace(staged, exe string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("pkexec", installPath, "-m", "0755", "-o", "root", "-g", "root", staged, exe)
+	pk, err := pkexecPath()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(pk, installPath, "-m", "0755", "-o", "root", "-g", "root", staged, exe)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("selfupdate: elevated replace failed: %w: %s", err, out)
 	}

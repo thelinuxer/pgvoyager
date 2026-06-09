@@ -182,6 +182,46 @@ func TestOriginGuardAllowsSameOrigin(t *testing.T) {
 	}
 }
 
+// TestOriginGuardHostValidation verifies that OriginGuard rejects DNS-rebind
+// attempts (non-loopback Host header) and allows loopback and empty Hosts.
+func TestOriginGuardHostValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name       string
+		host       string
+		wantStatus int
+	}{
+		{"loopback Host allowed", "127.0.0.1:5137", http.StatusOK},
+		{"localhost Host allowed", "localhost:5137", http.StatusOK},
+		{"empty Host allowed", "", http.StatusOK},
+		{"DNS-rebind host rejected", "evil.example.com:5137", http.StatusForbidden},
+		{"DNS-rebind host no port rejected", "pgvoyager.attacker.com", http.StatusForbidden},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Ensure PGVOYAGER_HOST is default (127.0.0.1) so ListenHost()
+			// doesn't accidentally match the attacker host.
+			t.Setenv("PGVOYAGER_HOST", "127.0.0.1")
+
+			r := gin.New()
+			r.Use(OriginGuard())
+			r.GET("/ok", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+			req := httptest.NewRequest(http.MethodGet, "/ok", nil)
+			req.Host = tc.host
+			// No Origin header — exercises Host-only path
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != tc.wantStatus {
+				t.Errorf("Host=%q: got status %d, want %d", tc.host, w.Code, tc.wantStatus)
+			}
+		})
+	}
+}
+
 // TestMain neutralizes any inherited PGVOYAGER_HOST so ListenHostDefault
 // reflects the package default.
 func TestMain(m *testing.M) {

@@ -155,9 +155,9 @@ echo ""
 # Stop running instance
 print_header "Preparing Installation"
 echo ""
-if pgrep -f "/usr/local/bin/pgvoyager" > /dev/null 2>&1; then
+if pgrep -f "${INSTALL_DIR}/pgvoyager" > /dev/null 2>&1; then
     print_step "Stopping running PgVoyager instance"
-    ${SUDO} pkill -f "/usr/local/bin/pgvoyager" 2>/dev/null || true
+    ${SUDO} pkill -f "${INSTALL_DIR}/pgvoyager" 2>/dev/null || true
     sleep 1
     print_success "Previous instance stopped"
 else

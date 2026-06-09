@@ -136,6 +136,13 @@ func (m *Manager) Status() State {
 	return m.state
 }
 
+// CanRestart reports whether a verified update is staged and ready to apply.
+func (m *Manager) CanRestart() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.state.Status == StatusReady && m.staged != ""
+}
+
 // Restart applies a previously-staged, verified update and relaunches.
 func (m *Manager) Restart() error {
 	m.mu.Lock()

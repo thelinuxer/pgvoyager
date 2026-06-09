@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -181,15 +182,23 @@ func computeServerStatus() gin.H {
 	}
 }
 
-// UpdateRestart applies a staged update (desktop edition only).
+// UpdateRestart applies a staged update (desktop edition only). It responds
+// first, then applies in a goroutine after a short delay so the HTTP response
+// flushes before the process swaps itself and tears down.
 func UpdateRestart(c *gin.Context) {
 	if updateManager == nil || !version.IsDesktop() {
 		c.JSON(http.StatusConflict, gin.H{"error": "self-update not supported for this build"})
 		return
 	}
-	if err := updateManager.Restart(); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	if !updateManager.CanRestart() {
+		c.JSON(http.StatusConflict, gin.H{"error": "no staged update to apply"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"restarting": true})
+	go func() {
+		time.Sleep(300 * time.Millisecond) // let the response flush before teardown
+		if err := updateManager.Restart(); err != nil {
+			log.Printf("self-update restart failed: %v", err)
+		}
+	}()
 }

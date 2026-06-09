@@ -360,11 +360,16 @@ export interface UpdateStatus {
 	releaseUrl: string;
 	needsElevation?: boolean;
 	error?: string;
+	restartToken?: string;
 }
 
 export const updateApi = {
 	getVersion: () => fetchAPI<VersionResponse>('/version'),
 	checkUpdate: () => fetchAPI<UpdateCheckResponse>('/update/check'),
 	status: () => fetchAPI<UpdateStatus>('/update/status'),
-	restart: () => fetchAPI<{ restarting: boolean }>('/update/restart', { method: 'POST' })
+	restart: (token?: string) =>
+		fetchAPI<{ restarting: boolean }>('/update/restart', {
+			method: 'POST',
+			headers: token ? { 'X-Update-Token': token } : {}
+		})
 };

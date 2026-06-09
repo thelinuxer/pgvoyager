@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,10 +34,32 @@ type UpdateCheckResponse struct {
 
 // cache for rate limiting GitHub API calls
 var (
-	cachedRelease     *GitHubRelease
-	cacheTime         time.Time
-	cacheDuration     = 5 * time.Minute
+	cachedRelease  *GitHubRelease
+	cacheTime      time.Time
+	cacheDuration  = 5 * time.Minute
+	cacheMu        sync.Mutex
 )
+
+// restartTokenOnce and restartTokenVal hold a per-process random token used to
+// guard the /api/update/restart endpoint against CSRF. A malicious local page
+// can POST cross-origin (OriginGuard allows loopback) but cannot READ the
+// /api/update/status response cross-origin (CORS only exposes dev origins),
+// so it cannot learn this token.
+var (
+	restartTokenOnce sync.Once
+	restartTokenVal  string
+)
+
+func restartToken() string {
+	restartTokenOnce.Do(func() {
+		b := make([]byte, 32)
+		if _, err := rand.Read(b); err != nil {
+			panic("pgvoyager: failed to generate restart token: " + err.Error())
+		}
+		restartTokenVal = base64.RawURLEncoding.EncodeToString(b)
+	})
+	return restartTokenVal
+}
 
 // GetVersion returns the current version
 func GetVersion(c *gin.Context) {
@@ -47,10 +73,14 @@ func CheckUpdate(c *gin.Context) {
 	currentVersion := version.Version
 
 	// Use cached result if available and fresh
+	cacheMu.Lock()
 	if cachedRelease != nil && time.Since(cacheTime) < cacheDuration {
-		c.JSON(http.StatusOK, buildUpdateResponse(currentVersion, cachedRelease))
+		resp := buildUpdateResponse(currentVersion, cachedRelease)
+		cacheMu.Unlock()
+		c.JSON(http.StatusOK, resp)
 		return
 	}
+	cacheMu.Unlock()
 
 	// Fetch latest release from GitHub
 	release, err := fetchLatestRelease()
@@ -65,8 +95,10 @@ func CheckUpdate(c *gin.Context) {
 	}
 
 	// Cache the result
+	cacheMu.Lock()
 	cachedRelease = release
 	cacheTime = time.Now()
+	cacheMu.Unlock()
 
 	c.JSON(http.StatusOK, buildUpdateResponse(currentVersion, release))
 }
@@ -156,7 +188,17 @@ func SetUpdateManager(m *selfupdate.Manager) { updateManager = m }
 // the live manager state; server edition reports a computed check result.
 func UpdateStatus(c *gin.Context) {
 	if updateManager != nil {
-		c.JSON(http.StatusOK, updateManager.Status())
+		st := updateManager.Status()
+		c.JSON(http.StatusOK, gin.H{
+			"edition":        st.Edition,
+			"status":         st.Status,
+			"currentVersion": st.CurrentVersion,
+			"latestVersion":  st.LatestVersion,
+			"releaseUrl":     st.ReleaseURL,
+			"needsElevation": st.NeedsElevation,
+			"error":          st.Error,
+			"restartToken":   restartToken(),
+		})
 		return
 	}
 	c.JSON(http.StatusOK, computeServerStatus())
@@ -192,6 +234,15 @@ func UpdateRestart(c *gin.Context) {
 	}
 	if !updateManager.CanRestart() {
 		c.JSON(http.StatusConflict, gin.H{"error": "no staged update to apply"})
+		return
+	}
+	// Require the per-process CSRF token that the frontend reads from UpdateStatus.
+	// A malicious local page can POST cross-origin but cannot read the status
+	// response cross-origin (CORS restricts reads to dev origins), so it cannot
+	// forge this header.
+	provided := c.GetHeader("X-Update-Token")
+	if subtle.ConstantTimeCompare([]byte(provided), []byte(restartToken())) != 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "invalid restart token"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"restarting": true})

@@ -20,12 +20,22 @@
 	let connectionError = $state<string | null>(null);
 	let updateInfo = $state<UpdateCheckResponse | null>(null);
 
-	onMount(async () => {
+	// Re-check for updates every 6 hours so a long-running window still
+	// notices a new release without a manual reload.
+	const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+	async function checkForUpdate() {
 		try {
 			updateInfo = await updateApi.checkUpdate();
 		} catch {
 			// Silently ignore update check failures
 		}
+	}
+
+	onMount(() => {
+		checkForUpdate();
+		const timer = setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+		return () => clearInterval(timer);
 	});
 
 	async function handleConnect(id: string) {

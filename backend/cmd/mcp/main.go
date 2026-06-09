@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -208,7 +209,7 @@ func handleListTables(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 
 	endpoint := "/api/mcp/tables"
 	if schemaFilter != "" {
-		endpoint = fmt.Sprintf("%s?schema=%s", endpoint, schemaFilter)
+		endpoint = fmt.Sprintf("%s?schema=%s", endpoint, url.QueryEscape(schemaFilter))
 	}
 
 	resp, err := callBackendAPI(ctx, "GET", endpoint, nil)
@@ -228,7 +229,7 @@ func handleGetColumns(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 		return mcp.NewToolResultError("table parameter is required"), nil
 	}
 
-	endpoint := fmt.Sprintf("/api/mcp/tables/%s/%s/columns", schema, table)
+	endpoint := fmt.Sprintf("/api/mcp/tables/%s/%s/columns", url.PathEscape(schema), url.PathEscape(table))
 	resp, err := callBackendAPI(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get columns: %v", err)), nil
@@ -246,7 +247,7 @@ func handleGetTableInfo(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		return mcp.NewToolResultError("table parameter is required"), nil
 	}
 
-	endpoint := fmt.Sprintf("/api/mcp/tables/%s/%s", schema, table)
+	endpoint := fmt.Sprintf("/api/mcp/tables/%s/%s", url.PathEscape(schema), url.PathEscape(table))
 	resp, err := callBackendAPI(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get table info: %v", err)), nil
@@ -289,7 +290,7 @@ func handleListViews(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 
 	endpoint := "/api/mcp/views"
 	if schemaFilter != "" {
-		endpoint = fmt.Sprintf("%s?schema=%s", endpoint, schemaFilter)
+		endpoint = fmt.Sprintf("%s?schema=%s", endpoint, url.QueryEscape(schemaFilter))
 	}
 
 	resp, err := callBackendAPI(ctx, "GET", endpoint, nil)
@@ -304,7 +305,7 @@ func handleListFunctions(ctx context.Context, request mcp.CallToolRequest) (*mcp
 
 	endpoint := "/api/mcp/functions"
 	if schemaFilter != "" {
-		endpoint = fmt.Sprintf("%s?schema=%s", endpoint, schemaFilter)
+		endpoint = fmt.Sprintf("%s?schema=%s", endpoint, url.QueryEscape(schemaFilter))
 	}
 
 	resp, err := callBackendAPI(ctx, "GET", endpoint, nil)
@@ -324,7 +325,7 @@ func handleGetForeignKeys(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError("table parameter is required"), nil
 	}
 
-	endpoint := fmt.Sprintf("/api/mcp/tables/%s/%s/foreign-keys", schema, table)
+	endpoint := fmt.Sprintf("/api/mcp/tables/%s/%s/foreign-keys", url.PathEscape(schema), url.PathEscape(table))
 	resp, err := callBackendAPI(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get foreign keys: %v", err)), nil
@@ -342,7 +343,7 @@ func handleGetIndexes(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 		return mcp.NewToolResultError("table parameter is required"), nil
 	}
 
-	endpoint := fmt.Sprintf("/api/mcp/tables/%s/%s/indexes", schema, table)
+	endpoint := fmt.Sprintf("/api/mcp/tables/%s/%s/indexes", url.PathEscape(schema), url.PathEscape(table))
 	resp, err := callBackendAPI(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get indexes: %v", err)), nil

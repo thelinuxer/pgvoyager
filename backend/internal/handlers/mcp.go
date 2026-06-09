@@ -665,14 +665,13 @@ func MCPGetForeignKeys(c *gin.Context) {
 
 // MCPGetEditorContent gets the current editor content
 func MCPGetEditorContent(c *gin.Context) {
-	sessionID := c.GetHeader("X-Claude-Session-ID")
-	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Claude-Session-ID header"})
+	session, ok := authenticateMCP(c)
+	if !ok {
 		return
 	}
 
 	claudeManager := claude.GetManager()
-	state, err := claudeManager.GetEditorState(sessionID)
+	state, err := claudeManager.GetEditorState(session.ID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -693,9 +692,8 @@ func MCPGetEditorContent(c *gin.Context) {
 
 // MCPInsertToEditor inserts text into the editor
 func MCPInsertToEditor(c *gin.Context) {
-	sessionID := c.GetHeader("X-Claude-Session-ID")
-	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Claude-Session-ID header"})
+	session, ok := authenticateMCP(c)
+	if !ok {
 		return
 	}
 
@@ -725,7 +723,7 @@ func MCPInsertToEditor(c *gin.Context) {
 	}
 
 	claudeManager := claude.GetManager()
-	if err := claudeManager.SendEditorAction(sessionID, action); err != nil {
+	if err := claudeManager.SendEditorAction(session.ID, action); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -735,9 +733,8 @@ func MCPInsertToEditor(c *gin.Context) {
 
 // MCPReplaceEditorContent replaces the entire editor content
 func MCPReplaceEditorContent(c *gin.Context) {
-	sessionID := c.GetHeader("X-Claude-Session-ID")
-	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Claude-Session-ID header"})
+	session, ok := authenticateMCP(c)
+	if !ok {
 		return
 	}
 
@@ -756,7 +753,7 @@ func MCPReplaceEditorContent(c *gin.Context) {
 	}
 
 	claudeManager := claude.GetManager()
-	if err := claudeManager.SendEditorAction(sessionID, action); err != nil {
+	if err := claudeManager.SendEditorAction(session.ID, action); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

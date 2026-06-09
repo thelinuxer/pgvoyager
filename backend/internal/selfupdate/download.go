@@ -75,7 +75,9 @@ var (
 // Download fetches the desktop asset for tag, verifies it against the
 // release's SHA256SUMS, stages it (chmod 0755) next to the running binary,
 // and returns the staged path. The temp file is removed on any error.
-func Download(ctx context.Context, tag string) (string, error) {
+// onProgress, if non-nil, is called with the download percentage (0-100) as
+// the binary streams; it is not called when the server omits Content-Length.
+func Download(ctx context.Context, tag string, onProgress func(percent int)) (string, error) {
 	asset, err := AssetName()
 	if err != nil {
 		return "", err
@@ -86,7 +88,7 @@ func Download(ctx context.Context, tag string) (string, error) {
 	}
 	staged := filepath.Join(dir, "."+asset+".update")
 
-	if err := fetchToFile(ctx, baseURL+tag+"/"+asset, staged); err != nil {
+	if err := fetchToFile(ctx, baseURL+tag+"/"+asset, staged, onProgress); err != nil {
 		return "", err
 	}
 	sums, err := fetchString(ctx, baseURL+tag+"/SHA256SUMS")
@@ -107,7 +109,32 @@ func Download(ctx context.Context, tag string) (string, error) {
 
 const maxBinaryBytes = 256 << 20 // 256 MiB — generous for a Go binary
 
-func fetchToFile(ctx context.Context, url, dest string) error {
+// progressWriter counts bytes written and reports integer percent (0-100) via
+// cb, but only when the total size is known and the percent actually changes.
+type progressWriter struct {
+	total int64
+	done  int64
+	last  int
+	cb    func(int)
+}
+
+func (w *progressWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	w.done += int64(n)
+	if w.cb != nil && w.total > 0 {
+		pct := int(w.done * 100 / w.total)
+		if pct > 100 {
+			pct = 100
+		}
+		if pct != w.last {
+			w.last = pct
+			w.cb(pct)
+		}
+	}
+	return n, nil
+}
+
+func fetchToFile(ctx context.Context, url, dest string, onProgress func(int)) error {
 	resp, err := httpGet(ctx, url)
 	if err != nil {
 		return err
@@ -118,7 +145,11 @@ func fetchToFile(ctx context.Context, url, dest string) error {
 	if err != nil {
 		return err
 	}
-	_, copyErr := io.Copy(f, io.LimitReader(resp.Body, maxBinaryBytes))
+	dst := io.Writer(f)
+	if onProgress != nil {
+		dst = io.MultiWriter(f, &progressWriter{total: resp.ContentLength, cb: onProgress})
+	}
+	_, copyErr := io.Copy(dst, io.LimitReader(resp.Body, maxBinaryBytes))
 	closeErr := f.Close()
 	if copyErr != nil {
 		_ = os.Remove(dest)

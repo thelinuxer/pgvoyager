@@ -40,7 +40,7 @@ func TestDownloadVerifiesAndStages(t *testing.T) {
 	dir := t.TempDir()
 	stagingDir = func() (string, error) { return dir, nil }
 
-	staged, err := Download(context.Background(), "v9.9.9")
+	staged, err := Download(context.Background(), "v9.9.9", nil)
 	if err != nil {
 		t.Fatalf("Download error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestDownloadRejectsBadChecksum(t *testing.T) {
 	dir := t.TempDir()
 	stagingDir = func() (string, error) { return dir, nil }
 
-	if _, err := Download(context.Background(), "v9.9.9"); err == nil {
+	if _, err := Download(context.Background(), "v9.9.9", nil); err == nil {
 		t.Fatalf("expected checksum mismatch error")
 	}
 	entries, _ := os.ReadDir(dir)
@@ -104,7 +104,7 @@ func TestDownloadRejectsDisallowedHost(t *testing.T) {
 	// Real default allowlist is active here (not overridden); a non-GitHub
 	// base URL must be refused before any network call.
 	baseURL = "https://evil.example.com/"
-	if _, err := Download(context.Background(), "v9.9.9"); err == nil {
+	if _, err := Download(context.Background(), "v9.9.9", nil); err == nil {
 		t.Fatalf("expected refusal for disallowed host")
 	}
 }

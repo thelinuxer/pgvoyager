@@ -24,7 +24,7 @@ func TestManagerDownloadsWhenNewer(t *testing.T) {
 	m := newTestManager()
 	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "url", nil }
 	m.writable = func() bool { return true }
-	m.downloadFn = func(context.Context, string) (string, error) { return "/tmp/staged", nil }
+	m.downloadFn = func(context.Context, string, func(int)) (string, error) { return "/tmp/staged", nil }
 	m.cycle(context.Background())
 	st := m.Status()
 	if st.Status != StatusReady {
@@ -47,7 +47,7 @@ func TestManagerManualWhenNotWritableAndNoElevation(t *testing.T) {
 	m.writable = func() bool { return false }
 	m.canElevate = func() bool { return false }
 	called := false
-	m.downloadFn = func(context.Context, string) (string, error) { called = true; return "", nil }
+	m.downloadFn = func(context.Context, string, func(int)) (string, error) { called = true; return "", nil }
 	m.cycle(context.Background())
 	if m.Status().Status != StatusManual {
 		t.Fatalf("status = %q, want manual", m.Status().Status)
@@ -62,7 +62,7 @@ func TestManagerElevatedWhenNotWritable(t *testing.T) {
 	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "url", nil }
 	m.writable = func() bool { return false }
 	m.canElevate = func() bool { return true }
-	m.downloadFn = func(context.Context, string) (string, error) { return "/tmp/staged", nil }
+	m.downloadFn = func(context.Context, string, func(int)) (string, error) { return "/tmp/staged", nil }
 	m.cycle(context.Background())
 	st := m.Status()
 	if st.Status != StatusReady {
@@ -77,7 +77,7 @@ func TestManagerErrorOnDownloadFailure(t *testing.T) {
 	m := newTestManager()
 	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "url", nil }
 	m.writable = func() bool { return true }
-	m.downloadFn = func(context.Context, string) (string, error) { return "", errors.New("boom") }
+	m.downloadFn = func(context.Context, string, func(int)) (string, error) { return "", errors.New("boom") }
 	m.cycle(context.Background())
 	if m.Status().Status != StatusError {
 		t.Fatalf("status = %q, want error", m.Status().Status)
@@ -95,7 +95,7 @@ func TestManagerRestartCallsApply(t *testing.T) {
 	m := newTestManager()
 	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "url", nil }
 	m.writable = func() bool { return true }
-	m.downloadFn = func(context.Context, string) (string, error) { return "/tmp/staged", nil }
+	m.downloadFn = func(context.Context, string, func(int)) (string, error) { return "/tmp/staged", nil }
 	m.cycle(context.Background())
 
 	var applied string
@@ -112,7 +112,7 @@ func TestManagerRestartSetsErrorOnApplyFailure(t *testing.T) {
 	m := newTestManager()
 	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "url", nil }
 	m.writable = func() bool { return true }
-	m.downloadFn = func(context.Context, string) (string, error) { return "/tmp/staged", nil }
+	m.downloadFn = func(context.Context, string, func(int)) (string, error) { return "/tmp/staged", nil }
 	m.cycle(context.Background())
 
 	m.applyFn = func(string) error { return errors.New("rename failed") }

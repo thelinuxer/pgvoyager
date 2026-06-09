@@ -28,6 +28,7 @@ type State struct {
 	CurrentVersion string `json:"currentVersion"`
 	LatestVersion  string `json:"latestVersion"`
 	ReleaseURL     string `json:"releaseUrl"`
+	Progress       int    `json:"progress"` // download percent 0-100 while StatusDownloading
 	Error          string `json:"error,omitempty"`
 }
 
@@ -41,7 +42,7 @@ type Manager struct {
 
 	// Seams (overridable in tests).
 	fetchLatest func(context.Context) (tag, htmlURL string, err error)
-	downloadFn  func(context.Context, string) (string, error)
+	downloadFn  func(context.Context, string, func(int)) (string, error)
 	writable    func() bool
 	canElevate  func() bool
 	applyFn     func(string) error
@@ -134,8 +135,15 @@ func (m *Manager) cycle(ctx context.Context) {
 		s.LatestVersion = latest
 		s.ReleaseURL = htmlURL
 		s.NeedsElevation = !writable
+		s.Progress = 0
 	})
-	staged, err := m.downloadFn(ctx, tag)
+	staged, err := m.downloadFn(ctx, tag, func(pct int) {
+		m.mu.Lock()
+		if m.state.Status == StatusDownloading {
+			m.state.Progress = pct
+		}
+		m.mu.Unlock()
+	})
 	if err != nil {
 		m.setStatus(StatusError, func(s *State) { s.Error = err.Error() })
 		return
@@ -143,6 +151,7 @@ func (m *Manager) cycle(ctx context.Context) {
 	m.mu.Lock()
 	m.staged = staged
 	m.state.Status = StatusReady
+	m.state.Progress = 100
 	m.state.Error = ""
 	m.mu.Unlock()
 }

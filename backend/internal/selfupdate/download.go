@@ -18,7 +18,10 @@ var (
 	httpClient = &http.Client{Timeout: 5 * time.Minute}
 	// stagingDir returns where to stage the download. Prefer the running
 	// executable's directory (so Apply can atomically rename); if that dir is
-	// not writable, fall back to a user temp dir and let Apply elevate the swap.
+	// not writable, fall back to a user-private cache dir and let Apply elevate
+	// the swap. The fallback must be user-owned and not world-writable: staging
+	// in a shared /tmp path would let another local user swap the verified
+	// binary before the privileged copy (TOCTOU → root code execution).
 	stagingDir = func() (string, error) {
 		exe, err := exePath()
 		if err != nil {
@@ -28,11 +31,15 @@ var (
 		if writableDir(dir) {
 			return dir, nil
 		}
-		tmp := filepath.Join(os.TempDir(), "pgvoyager-update")
-		if err := os.MkdirAll(tmp, 0o755); err != nil {
+		base, err := os.UserCacheDir()
+		if err != nil {
 			return "", err
 		}
-		return tmp, nil
+		staging := filepath.Join(base, "pgvoyager", "update")
+		if err := os.MkdirAll(staging, 0o700); err != nil {
+			return "", err
+		}
+		return staging, nil
 	}
 )
 

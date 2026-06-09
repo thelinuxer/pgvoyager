@@ -3,14 +3,17 @@ import { AppPage } from '../../pages';
 
 /**
  * The Databases panel splits its load into two passes:
- *  1. cheap names + metadata (so the panel paints immediately after connect)
- *  2. lazy `pg_database_size` query (so connect is never blocked by a per-DB
- *     file scan on servers with many or large databases).
+ *  1. cheap names + metadata, fetched automatically on connect (so the panel
+ *     paints immediately).
+ *  2. the expensive `pg_database_size` query, which is NOT run on connect
+ *     (it scans every file in each DB dir and would block a pool connection
+ *     on servers with many or large databases). It runs only on demand when
+ *     the user clicks "Show sizes".
  *
- * These tests verify both passes: the panel renders names quickly and sizes
- * appear asynchronously without blocking the initial render.
+ * These tests verify names render on connect, sizes are not fetched until
+ * requested, and the request populates the size badges.
  */
-test.describe('Databases panel — lazy size loading', () => {
+test.describe('Databases panel — on-demand size loading', () => {
   test.describe.configure({ mode: 'serial' });
 
   let app: AppPage;
@@ -34,25 +37,40 @@ test.describe('Databases panel — lazy size loading', () => {
     await expect(app.sidebar.databaseOption(config.database)).toBeVisible({ timeout: 10000 });
   });
 
-  test('sizes load lazily and appear after the initial render', async () => {
+  test('sizes are not fetched on connect; "Show sizes" button is offered', async () => {
     const config = getTestConnectionConfig();
+    // No size badge until requested.
+    await expect(
+      app.page.locator(`[data-testid="database-size-${config.database}"]`)
+    ).toHaveCount(0);
+    await expect(app.sidebar.loadDatabaseSizesButton).toBeVisible({ timeout: 10000 });
+  });
+
+  test('clicking "Show sizes" populates size badges on demand', async () => {
+    const config = getTestConnectionConfig();
+    await app.sidebar.loadDatabaseSizesButton.click();
+
     const sizeBadge = app.page.locator(`[data-testid="database-size-${config.database}"]`);
-    await expect(sizeBadge).toBeVisible({ timeout: 15000 });
+    await expect(sizeBadge).toBeVisible({ timeout: 30000 });
 
     const text = (await sizeBadge.textContent())?.trim() || '';
     // pg_size_pretty output: "8192 bytes", "1024 kB", "5 MB", etc.
     expect(text).toMatch(/^[\d.]+\s*(bytes|kB|MB|GB|TB)$/i);
+
+    // Once loaded, the button is gone.
+    await expect(app.sidebar.loadDatabaseSizesButton).toHaveCount(0);
   });
 
-  test('refresh reloads names then re-fetches sizes lazily', async () => {
+  test('refresh reloads names and resets sizes to on-demand', async () => {
     const config = getTestConnectionConfig();
     await app.sidebar.refreshDatabasesButton.click();
 
-    // Names re-appear quickly
+    // Names re-appear quickly.
     await expect(app.sidebar.databaseOption(config.database)).toBeVisible({ timeout: 10000 });
-    // Sizes eventually re-populate
+    // Sizes are cleared and the button is offered again.
+    await expect(app.sidebar.loadDatabaseSizesButton).toBeVisible({ timeout: 10000 });
     await expect(
       app.page.locator(`[data-testid="database-size-${config.database}"]`)
-    ).toBeVisible({ timeout: 15000 });
+    ).toHaveCount(0);
   });
 });

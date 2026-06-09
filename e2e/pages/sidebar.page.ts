@@ -27,6 +27,14 @@ export class SidebarPage extends BasePage {
     return this.page.locator('[data-testid="btn-refresh-databases"]');
   }
 
+  get loadDatabaseSizesButton(): Locator {
+    return this.page.locator('[data-testid="btn-load-database-sizes"]');
+  }
+
+  get filterDatabasesInput(): Locator {
+    return this.page.locator('[data-testid="input-filter-databases"]');
+  }
+
   databaseOption(name: string): Locator {
     return this.page.locator(`[data-testid="database-option-${name}"]`);
   }
@@ -94,7 +102,11 @@ export class SidebarPage extends BasePage {
 
   // Search
   get searchInput(): Locator {
-    return this.sidebar.locator('.search-input, input[placeholder*="filter" i], input[placeholder*="search" i]');
+    // Scope to the schema-tree search; exclude the Databases panel filter,
+    // whose "Filter databases…" placeholder would otherwise also match.
+    return this.sidebar.locator(
+      '.search-input, input[placeholder*="filter" i]:not([data-testid="input-filter-databases"]), input[placeholder*="search" i]:not([data-testid="input-filter-databases"])'
+    );
   }
 
   get searchClearButton(): Locator {

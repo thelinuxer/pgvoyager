@@ -30,6 +30,9 @@ func main() {
 	}
 
 	host := security.ListenHost()
+	if !security.IsLoopback(host) {
+		log.Printf("[SECURITY WARNING] PgVoyager is bound to a non-loopback address (%s); the API has no auth beyond origin checks — firewall this port", host)
+	}
 	isProd := os.Getenv("PGVOYAGER_MODE") == "production"
 
 	if isProd {

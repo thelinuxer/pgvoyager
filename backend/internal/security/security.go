@@ -107,6 +107,16 @@ func SecurityHeaders() gin.HandlerFunc {
 		// low for a local-only tool whose entire bundle is shipped in
 		// our binary (no injection surface). If we later add a CSP
 		// nonce or hash-based scheme, this can be tightened.
+		//
+		// connect-src: `'self'` covers same-origin fetch/XHR but does
+		// NOT cover ws:// in all browsers. The explicit ws://localhost:*
+		// and ws://127.0.0.1:* entries are required because the desktop
+		// binary binds a dynamic (OS-assigned) port, so we cannot pin a
+		// specific port in the CSP. In dev mode the Vite frontend on
+		// port 5173 connects to ws://localhost:5137 directly; removing
+		// these entries would break the Claude terminal WebSocket.
+		// Tightening to a specific port is only possible once we commit
+		// to a fixed port for both modes.
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; "+
 				"script-src 'self' 'unsafe-inline'; "+
@@ -137,11 +147,41 @@ func MaxBodyBytes(limit int64) gin.HandlerFunc {
 	}
 }
 
+// hostOnly extracts the hostname portion of a host:port string. Falls back
+// to the whole string when there is no port (SplitHostPort requires a port).
+func hostOnly(hostport string) string {
+	h, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return hostport
+	}
+	return h
+}
+
 // OriginGuard rejects requests whose Origin header doesn't match the
 // AllowedOrigin policy. Used at the router level so individual handlers
 // don't need to re-implement the check.
+//
+// DNS-rebinding defense: in addition to Origin validation, the Host header
+// is checked. A DNS-rebind attack can omit the Origin header (or send one
+// that passes loopback checks) while using a Host like
+// "pgvoyager.attacker.com:5137". If the Host resolves to the server IP, the
+// request arrives — but our server must refuse it when the Host is neither
+// loopback nor the configured bind address.
 func OriginGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// --- Host header validation (DNS-rebinding defense) ---
+		// Extract the bare hostname from the Host header (strip port if any).
+		// Empty Host is allowed (e.g. direct TCP clients that omit the header).
+		if reqHost := hostOnly(c.Request.Host); reqHost != "" &&
+			!IsLoopback(reqHost) &&
+			!strings.EqualFold(reqHost, ListenHost()) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": fmt.Sprintf("host %q not allowed", reqHost),
+			})
+			return
+		}
+
+		// --- Origin header validation (CSRF defense) ---
 		origin := c.GetHeader("Origin")
 		if !AllowedOrigin(origin, c.Request.Host) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{

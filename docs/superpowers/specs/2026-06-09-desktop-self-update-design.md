@@ -36,11 +36,30 @@ lives in a user-writable location.
   trigger endpoint desktop-only + guarded) shrinks the attack surface.
 - The headless server binary never gets a "replace my binary" route.
 
+## Privileged update (amendment 2026-06-09)
+
+Root-owned installs (`/usr/local/bin`) now self-update too, by elevating ONLY
+the binary-swap step through a GUI auth dialog:
+
+- **Linux:** `pkexec` (polkit) — implemented now.
+- **macOS:** `osascript … with administrator privileges` — platform seam, stub.
+- **Windows:** UAC `runas` — platform seam, stub.
+
+Mechanics:
+- Staging goes to the exe's dir when writable, else to a user-writable temp
+  dir (`os.TempDir()/pgvoyager-update`).
+- `Apply` tries `os.Rename`; on failure (not writable / cross-device) and when
+  elevation is available, it runs an elevated copy+chmod of the staged file
+  over the exe. The new process is spawned as the normal user.
+- A non-writable install is `ready` (not `manual`) when elevation is available;
+  `State.NeedsElevation=true` lets the UI hint that an admin password dialog
+  will appear. If elevation is unavailable too, it falls back to `manual`.
+- Cancelling the password dialog returns an error → status stays `ready`.
+
 ## Non-goals (YAGNI)
 
 - Server/browser-edition self-update.
-- Privilege escalation to write root-owned paths (`/usr/local/bin`). Those get
-  the manual-download fallback.
+- macOS/Windows privileged update beyond the platform seam (stubbed for now).
 - Code signing / Sigstore (SHA256 catches corruption, not a compromised
   release — future work).
 - Delta/patch updates.

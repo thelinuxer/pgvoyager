@@ -13,10 +13,17 @@ const baseURL = process.env.BASE_URL || 'http://localhost:5137';
 // Use a separate config directory for e2e tests to avoid messing with user's real config
 const e2eConfigDir = process.env.PGVOYAGER_CONFIG_DIR || path.join(os.tmpdir(), 'pgvoyager-e2e-config');
 
-// Ensure the e2e config directory exists
-// In CI: clean it first to start fresh
-// Locally: just ensure it exists
-if (isCI && fs.existsSync(e2eConfigDir)) {
+// Ensure the e2e config directory exists.
+// IMPORTANT: this config module is re-imported by every Playwright worker
+// process (and again on retry). Only the runner's main process may wipe the
+// directory — doing it on worker/retry re-import deletes pgvoyager.db out from
+// under the already-running webServer, which records the file's inode at open
+// and then fails subsequent writes with SQLITE_READONLY_DBMOVED (error 1032,
+// "attempt to write a readonly database"). TEST_WORKER_INDEX is set only in
+// worker processes, so guarding on its absence confines the wipe to the single
+// pre-server main-process evaluation.
+const isMainProcess = process.env.TEST_WORKER_INDEX === undefined;
+if (isCI && isMainProcess && fs.existsSync(e2eConfigDir)) {
   fs.rmSync(e2eConfigDir, { recursive: true, force: true });
 }
 fs.mkdirSync(e2eConfigDir, { recursive: true });

@@ -3,11 +3,13 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/thelinuxer/pgvoyager/internal/selfupdate"
 	"github.com/thelinuxer/pgvoyager/internal/version"
 )
 
@@ -142,4 +144,61 @@ func compareVersions(v1, v2 string) int {
 	}
 
 	return 0
+}
+
+// updateManager is set by the desktop binary; nil for the server edition.
+var updateManager *selfupdate.Manager
+
+// SetUpdateManager wires the desktop self-update manager into the handlers.
+func SetUpdateManager(m *selfupdate.Manager) { updateManager = m }
+
+// UpdateStatus returns the current self-update state. Desktop edition reports
+// the live manager state; server edition reports a computed check result.
+func UpdateStatus(c *gin.Context) {
+	if updateManager != nil {
+		c.JSON(http.StatusOK, updateManager.Status())
+		return
+	}
+	c.JSON(http.StatusOK, computeServerStatus())
+}
+
+func computeServerStatus() gin.H {
+	current := version.Version
+	rel, err := fetchLatestRelease()
+	if err != nil {
+		return gin.H{"edition": "server", "status": "idle", "currentVersion": current, "latestVersion": current, "releaseUrl": version.ReleasesURL()}
+	}
+	resp := buildUpdateResponse(current, rel)
+	status := "idle"
+	if resp.HasUpdate {
+		status = "manual"
+	}
+	return gin.H{
+		"edition":        "server",
+		"status":         status,
+		"currentVersion": resp.CurrentVersion,
+		"latestVersion":  resp.LatestVersion,
+		"releaseUrl":     resp.ReleaseURL,
+	}
+}
+
+// UpdateRestart applies a staged update (desktop edition only). It responds
+// first, then applies in a goroutine after a short delay so the HTTP response
+// flushes before the process swaps itself and tears down.
+func UpdateRestart(c *gin.Context) {
+	if updateManager == nil || !version.IsDesktop() {
+		c.JSON(http.StatusConflict, gin.H{"error": "self-update not supported for this build"})
+		return
+	}
+	if !updateManager.CanRestart() {
+		c.JSON(http.StatusConflict, gin.H{"error": "no staged update to apply"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"restarting": true})
+	go func() {
+		time.Sleep(300 * time.Millisecond) // let the response flush before teardown
+		if err := updateManager.Restart(); err != nil {
+			log.Printf("self-update restart failed: %v", err)
+		}
+	}()
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { connections, activeConnectionId, activeConnection } from '$lib/stores/connections';
-	import { connectionApi, updateApi, type UpdateCheckResponse } from '$lib/api/client';
+	import { connectionApi, updateApi, type UpdateStatus } from '$lib/api/client';
 	import { layout } from '$lib/stores/layout';
 	import Icon from '$lib/icons/Icon.svelte';
 	import ConnectionDropdown from './ConnectionDropdown.svelte';
@@ -18,23 +18,35 @@
 
 	let isConnecting = $state(false);
 	let connectionError = $state<string | null>(null);
-	let updateInfo = $state<UpdateCheckResponse | null>(null);
+	let update = $state<UpdateStatus | null>(null);
+	let restarting = $state(false);
 
-	// Re-check for updates every 6 hours so a long-running window still
-	// notices a new release without a manual reload.
-	const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+	// Polling cadence: the desktop process does the heavy lifting (check +
+	// download). The UI only polls to learn when an update is ready.
+	const UPDATE_POLL_MS = 30 * 60 * 1000;
 
-	async function checkForUpdate() {
+	async function refreshUpdateStatus() {
 		try {
-			updateInfo = await updateApi.checkUpdate();
+			update = await updateApi.status();
 		} catch {
-			// Silently ignore update check failures
+			// Non-fatal: badge falls back to nothing.
+		}
+	}
+
+	async function handleRestart() {
+		if (restarting) return;
+		restarting = true;
+		try {
+			await updateApi.restart();
+			// Backend swaps + relaunches; this window will be torn down.
+		} catch {
+			restarting = false;
 		}
 	}
 
 	onMount(() => {
-		checkForUpdate();
-		const timer = setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+		refreshUpdateStatus();
+		const timer = setInterval(refreshUpdateStatus, UPDATE_POLL_MS);
 		return () => clearInterval(timer);
 	});
 
@@ -84,17 +96,34 @@
 			<img src="/logo.svg" alt="PgVoyager" class="logo-icon" />
 			<span class="logo-text">PgVoyager</span>
 		</div>
-		{#if updateInfo}
-			{#if updateInfo.hasUpdate}
-				<a href={updateInfo.releaseUrl} target="_blank" rel="noopener noreferrer"
-				   class="version-badge update-available"
-				   title="Update available! Click to download {updateInfo.latestVersion}">
+		{#if update}
+			{#if restarting}
+				<span class="version-badge" title="Updating…">
+					<Icon name="refresh" size={12} class="spinning" />
+					Updating…
+				</span>
+			{:else if update.status === 'ready'}
+				<button class="version-badge update-ready" onclick={handleRestart}
+				        title="Update {update.latestVersion} ready — restart to apply"
+				        data-testid="btn-update-restart">
 					<span class="update-dot"></span>
-					{updateInfo.currentVersion}
+					Restart to update
+				</button>
+			{:else if update.status === 'downloading'}
+				<span class="version-badge" title="Downloading update {update.latestVersion}…">
+					<Icon name="refresh" size={12} class="spinning" />
+					{update.currentVersion}
+				</span>
+			{:else if update.status === 'manual'}
+				<a href={update.releaseUrl} target="_blank" rel="noopener noreferrer"
+				   class="version-badge update-available"
+				   title="Update available! Click to download {update.latestVersion}">
+					<span class="update-dot"></span>
+					{update.currentVersion}
 				</a>
 			{:else}
-				<span class="version-badge" title="PgVoyager {updateInfo.currentVersion}">
-					{updateInfo.currentVersion}
+				<span class="version-badge" title="PgVoyager {update.currentVersion}">
+					{update.currentVersion}
 				</span>
 			{/if}
 		{/if}
@@ -220,6 +249,20 @@
 
 	.version-badge.update-available:hover {
 		background: rgba(137, 180, 250, 0.2);
+	}
+
+	.version-badge.update-ready {
+		border: none;
+		cursor: pointer;
+		background: var(--color-primary);
+		color: #fff;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.version-badge.update-ready:hover {
+		filter: brightness(1.05);
 	}
 
 	.update-dot {

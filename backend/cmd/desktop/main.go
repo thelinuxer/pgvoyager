@@ -23,8 +23,11 @@ import (
 
 	"github.com/thelinuxer/pgvoyager/internal/api"
 	"github.com/thelinuxer/pgvoyager/internal/chromelaunch"
+	"github.com/thelinuxer/pgvoyager/internal/handlers"
 	"github.com/thelinuxer/pgvoyager/internal/security"
+	"github.com/thelinuxer/pgvoyager/internal/selfupdate"
 	"github.com/thelinuxer/pgvoyager/internal/static"
+	"github.com/thelinuxer/pgvoyager/internal/version"
 	"github.com/thelinuxer/pgvoyager/web"
 )
 
@@ -69,6 +72,10 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	updater := selfupdate.NewManager(version.Version)
+	handlers.SetUpdateManager(updater)
+	updater.Start(ctx, 6*time.Hour)
 
 	// Bridge OS signals into ctx-cancel so either the user closing the
 	// browser window or SIGINT/SIGTERM tears down the server cleanly.
@@ -119,6 +126,9 @@ func buildRouter() *gin.Engine {
 	}))
 	r.Use(static.ServeEmbedded(web.StaticFiles, "dist"))
 	api.RegisterRoutes(r)
+	// Desktop-only: the mutating restart route lives here so the headless
+	// server binary never exposes "replace my binary" over HTTP.
+	r.POST("/api/update/restart", handlers.UpdateRestart)
 	return r
 }
 

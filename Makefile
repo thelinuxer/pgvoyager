@@ -5,6 +5,7 @@
 # Version from git tag or default
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -s -w -X github.com/thelinuxer/pgvoyager/internal/version.Version=$(VERSION)
+DESKTOP_LDFLAGS := $(LDFLAGS) -X github.com/thelinuxer/pgvoyager/internal/version.Edition=desktop
 
 # Default target: run both backend and frontend
 dev:
@@ -146,10 +147,10 @@ build-frontend:
 # installed at runtime.
 
 desktop: build-frontend-prod
-	cd backend && go build -ldflags="$(LDFLAGS)" -o ../bin/pgvoyager-desktop ./cmd/desktop
+	cd backend && go build -ldflags="$(DESKTOP_LDFLAGS)" -o ../bin/pgvoyager-desktop ./cmd/desktop
 
 desktop-dev: build-frontend-prod
-	cd backend && go run ./cmd/desktop
+	cd backend && go run -ldflags="$(DESKTOP_LDFLAGS)" ./cmd/desktop
 
 # ====================
 # E2E Testing Commands

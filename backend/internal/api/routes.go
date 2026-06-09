@@ -114,6 +114,7 @@ func RegisterRoutes(r *gin.Engine) {
 		// Version and updates
 		api.GET("/version", handlers.GetVersion)
 		api.GET("/update/check", handlers.CheckUpdate)
+		api.GET("/update/status", handlers.UpdateStatus)
 
 		// MCP API (called by MCP server, uses X-Claude-Session-ID header)
 		mcp := api.Group("/mcp")

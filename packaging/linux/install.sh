@@ -71,10 +71,44 @@ print_done() {
     echo -e " ${GREEN}done${NC}"
 }
 
-# Parse command line arguments
-PGVOYAGER_PORT="${1:-5137}"
+# Parse command line arguments: optional --user flag, optional port.
+USER_INSTALL=0
+PGVOYAGER_PORT="5137"
+for arg in "$@"; do
+    case "$arg" in
+        --user) USER_INSTALL=1 ;;
+        ''|*[!0-9]*) ;;            # ignore non-numeric, non-flag args
+        *) PGVOYAGER_PORT="$arg" ;;
+    esac
+done
 
-INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+if [ "$USER_INSTALL" -eq 1 ]; then
+    INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
+else
+    INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+fi
+
+# Use sudo only when the install dir is not writable by the current user.
+mkdir -p "$INSTALL_DIR" 2>/dev/null || true
+if [ -w "$INSTALL_DIR" ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
+# Warn if a user-chosen install dir is not on PATH.
+case ":$PATH:" in
+    *":$INSTALL_DIR:"*) ;;
+    *)
+        if [ "$USER_INSTALL" -eq 1 ]; then
+            echo ""
+            echo "  NOTE: $INSTALL_DIR is not on your PATH."
+            echo "  Add this to your shell profile:"
+            echo "      export PATH=\"$INSTALL_DIR:\$PATH\""
+        fi
+        ;;
+esac
+
 ICON_DIR="${HOME}/.local/share/icons/hicolor"
 DESKTOP_DIR="${HOME}/.local/share/applications"
 CONFIG_DIR="${HOME}/.config/pgvoyager"
@@ -121,9 +155,9 @@ echo ""
 # Stop running instance
 print_header "Preparing Installation"
 echo ""
-if pgrep -f "/usr/local/bin/pgvoyager" > /dev/null 2>&1; then
+if pgrep -f "${INSTALL_DIR}/pgvoyager" > /dev/null 2>&1; then
     print_step "Stopping running PgVoyager instance"
-    sudo pkill -f "/usr/local/bin/pgvoyager" 2>/dev/null || true
+    ${SUDO} pkill -f "${INSTALL_DIR}/pgvoyager" 2>/dev/null || true
     sleep 1
     print_success "Previous instance stopped"
 else
@@ -148,8 +182,8 @@ fi
 # Install main binary
 if [ -f "${SCRIPT_DIR}/pgvoyager" ]; then
     print_progress "Installing PgVoyager binary"
-    sudo cp "${SCRIPT_DIR}/pgvoyager" "${INSTALL_DIR}/pgvoyager"
-    sudo chmod 755 "${INSTALL_DIR}/pgvoyager"
+    ${SUDO} cp "${SCRIPT_DIR}/pgvoyager" "${INSTALL_DIR}/pgvoyager"
+    ${SUDO} chmod 755 "${INSTALL_DIR}/pgvoyager"
     print_done
     print_success "Installed: ${DIM}${INSTALL_DIR}/pgvoyager${NC}"
 fi
@@ -157,8 +191,8 @@ fi
 # Install MCP server
 if [ -f "${SCRIPT_DIR}/pgvoyager-mcp" ]; then
     print_progress "Installing MCP server"
-    sudo cp "${SCRIPT_DIR}/pgvoyager-mcp" "${INSTALL_DIR}/pgvoyager-mcp"
-    sudo chmod 755 "${INSTALL_DIR}/pgvoyager-mcp"
+    ${SUDO} cp "${SCRIPT_DIR}/pgvoyager-mcp" "${INSTALL_DIR}/pgvoyager-mcp"
+    ${SUDO} chmod 755 "${INSTALL_DIR}/pgvoyager-mcp"
     print_done
     print_success "Installed: ${DIM}${INSTALL_DIR}/pgvoyager-mcp${NC}"
 fi
@@ -183,8 +217,8 @@ elif [ -n "${DESKTOP_BINARY}" ]; then
 fi
 if [ -n "${DESKTOP_SRC}" ]; then
     print_progress "Installing desktop binary"
-    sudo cp "${DESKTOP_SRC}" "${INSTALL_DIR}/pgvoyager-desktop"
-    sudo chmod 755 "${INSTALL_DIR}/pgvoyager-desktop"
+    ${SUDO} cp "${DESKTOP_SRC}" "${INSTALL_DIR}/pgvoyager-desktop"
+    ${SUDO} chmod 755 "${INSTALL_DIR}/pgvoyager-desktop"
     print_done
     print_success "Installed: ${DIM}${INSTALL_DIR}/pgvoyager-desktop${NC}"
 fi
@@ -192,8 +226,8 @@ fi
 # Install launcher
 if [ -f "${SCRIPT_DIR}/pgvoyager-launcher" ]; then
     print_progress "Installing launcher script"
-    sudo cp "${SCRIPT_DIR}/pgvoyager-launcher" "${INSTALL_DIR}/pgvoyager-launcher"
-    sudo chmod 755 "${INSTALL_DIR}/pgvoyager-launcher"
+    ${SUDO} cp "${SCRIPT_DIR}/pgvoyager-launcher" "${INSTALL_DIR}/pgvoyager-launcher"
+    ${SUDO} chmod 755 "${INSTALL_DIR}/pgvoyager-launcher"
     print_done
     print_success "Installed: ${DIM}${INSTALL_DIR}/pgvoyager-launcher${NC}"
 fi

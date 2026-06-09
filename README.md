@@ -150,6 +150,12 @@ chmod +x pgvoyager-desktop
 
 Download `pgvoyager-desktop-windows-amd64.exe` and run it.
 
+> **Auto-update:** install to a user-writable location to enable in-app
+> updates — on Linux `./install.sh --user` installs to `~/.local/bin` (no
+> sudo). The desktop app then checks for new releases, downloads them in the
+> background (SHA256-verified), and offers a **"Restart to update"** button.
+> Root-owned installs (`/usr/local/bin`) show a manual download link instead.
+
 ### Server / Browser Mode
 
 Runs PgVoyager as a local server you open in any browser.

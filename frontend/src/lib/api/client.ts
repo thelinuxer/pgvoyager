@@ -344,8 +344,26 @@ export interface UpdateCheckResponse {
 	releaseUrl: string;
 }
 
+export type UpdateStatusValue =
+	| 'idle'
+	| 'checking'
+	| 'downloading'
+	| 'ready'
+	| 'error'
+	| 'manual';
+
+export interface UpdateStatus {
+	edition: 'desktop' | 'server';
+	status: UpdateStatusValue;
+	currentVersion: string;
+	latestVersion: string;
+	releaseUrl: string;
+	error?: string;
+}
+
 export const updateApi = {
 	getVersion: () => fetchAPI<VersionResponse>('/version'),
-
-	checkUpdate: () => fetchAPI<UpdateCheckResponse>('/update/check')
+	checkUpdate: () => fetchAPI<UpdateCheckResponse>('/update/check'),
+	status: () => fetchAPI<UpdateStatus>('/update/status'),
+	restart: () => fetchAPI<{ restarting: boolean }>('/update/restart', { method: 'POST' })
 };

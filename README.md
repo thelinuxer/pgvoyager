@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/thelinuxer/pgvoyager/releases/latest"><img src="https://img.shields.io/github/v/release/thelinuxer/pgvoyager?style=flat-square&color=blue" alt="Latest Release"></a>
-  <a href="https://github.com/thelinuxer/pgvoyager/blob/master/LICENSE"><img src="https://img.shields.io/github/license/thelinuxer/pgvoyager?style=flat-square" alt="License"></a>
+  <a href="https://github.com/thelinuxer/pgvoyager/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://github.com/thelinuxer/pgvoyager/actions"><img src="https://img.shields.io/github/actions/workflow/status/thelinuxer/pgvoyager/e2e-tests.yml?style=flat-square&label=tests" alt="Tests"></a>
   <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go" alt="Go">
   <img src="https://img.shields.io/badge/Svelte-5-FF3E00?style=flat-square&logo=svelte" alt="Svelte">
@@ -18,6 +18,7 @@
 </p>
 
 <p align="center">
+  <a href="https://thelinuxer.github.io/pgvoyager/"><strong>Website</strong></a> •
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#getting-started">Getting Started</a> •
@@ -121,10 +122,37 @@ A **Databases** panel sits at the top of the sidebar, listing every database ava
 
 - **Claude Code CLI** - For the embedded AI assistant (`npm install -g @anthropic-ai/claude-code` or see [Claude Code docs](https://docs.anthropic.com/en/docs/claude-code))
 - **PostgreSQL** - A database to connect to
-
-### Download
+- **Google Chrome or Chromium** - Required only for the Desktop App (it renders in a native window via your system browser engine)
 
 Download the latest release for your platform from [GitHub Releases](https://github.com/thelinuxer/pgvoyager/releases).
+
+### Desktop App (Recommended)
+
+Runs PgVoyager in its own native window — no separate browser tab needed.
+
+#### Linux
+
+```bash
+curl -L https://github.com/thelinuxer/pgvoyager/releases/latest/download/pgvoyager-desktop-linux-amd64 -o pgvoyager-desktop
+chmod +x pgvoyager-desktop
+./pgvoyager-desktop
+```
+
+#### macOS (Apple Silicon)
+
+```bash
+curl -L https://github.com/thelinuxer/pgvoyager/releases/latest/download/pgvoyager-desktop-darwin-arm64 -o pgvoyager-desktop
+chmod +x pgvoyager-desktop
+./pgvoyager-desktop
+```
+
+#### Windows
+
+Download `pgvoyager-desktop-windows-amd64.exe` and run it.
+
+### Server / Browser Mode
+
+Runs PgVoyager as a local server you open in any browser.
 
 #### Linux
 

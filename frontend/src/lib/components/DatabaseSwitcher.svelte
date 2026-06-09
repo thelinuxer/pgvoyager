@@ -6,13 +6,21 @@
 	import Icon from '$lib/icons/Icon.svelte';
 
 	let databases = $state<Database[]>([]);
+	let filter = $state('');
 	let isLoading = $state(false);
 	let isExpanded = $state(true);
 	let error = $state<string | null>(null);
+
+	let filteredDatabases = $derived.by(() => {
+		const q = filter.trim().toLowerCase();
+		if (!q) return databases;
+		return databases.filter((db) => db.name.toLowerCase().includes(q));
+	});
 	let loadedForConnId = $state<string | null>(null);
 	let busyDatabase = $state<string | null>(null);
 	let sizes = $state<Record<string, string>>({});
 	let sizesLoading = $state(false);
+	let sizesLoaded = $state(false);
 
 	let contextMenu = $state<{ database: string; x: number; y: number } | null>(null);
 
@@ -28,11 +36,13 @@
 		const connId = $activeConnectionId;
 		if (!connId) {
 			databases = [];
+			filter = '';
 			loadedForConnId = null;
 			return;
 		}
 		if (connId !== loadedForConnId) {
 			loadedForConnId = connId;
+			filter = '';
 			loadDatabases();
 		}
 	});
@@ -42,6 +52,7 @@
 		isLoading = true;
 		error = null;
 		sizes = {};
+		sizesLoaded = false;
 		try {
 			const list = await schemaApi.listDatabases($activeConnectionId);
 			databases = list || [];
@@ -50,9 +61,9 @@
 		} finally {
 			isLoading = false;
 		}
-		// Fetch sizes lazily after names render so the panel isn't blocked
-		// by pg_database_size, which is expensive on big servers.
-		loadSizes();
+		// Sizes are NOT fetched here: pg_database_size scans every file in each
+		// DB dir (~17s for 33 DBs) and would block a pool connection on every
+		// connect. The user loads them on demand via the "Show sizes" button.
 	}
 
 	async function loadSizes() {
@@ -65,6 +76,7 @@
 			const map: Record<string, string> = {};
 			for (const s of list || []) map[s.name] = s.size;
 			sizes = map;
+			sizesLoaded = true;
 		} catch {
 			// Size load failure is non-fatal: panel still works without sizes.
 		} finally {
@@ -212,7 +224,9 @@
 				<Icon name="database" size={12} />
 				<span>Databases</span>
 				{#if databases.length > 0}
-					<span class="panel-count">{databases.length}</span>
+					<span class="panel-count">
+						{#if filter.trim()}{filteredDatabases.length}/{databases.length}{:else}{databases.length}{/if}
+					</span>
 				{/if}
 			</button>
 			<div class="panel-actions">
@@ -251,7 +265,33 @@
 				{:else if databases.length === 0}
 					<div class="panel-status">No databases</div>
 				{:else}
-					{#each databases as db}
+					{#if databases.length > 1}
+						<div class="db-filter">
+							<Icon name="search" size={12} />
+							<input
+								type="text"
+								bind:value={filter}
+								placeholder="Filter databases…"
+								data-testid="input-filter-databases"
+								spellcheck="false"
+								autocomplete="off"
+							/>
+							{#if filter}
+								<button
+									class="db-filter-clear"
+									onclick={() => (filter = '')}
+									title="Clear filter"
+									data-testid="btn-clear-db-filter"
+								>
+									<Icon name="x" size={12} />
+								</button>
+							{/if}
+						</div>
+					{/if}
+					{#if filteredDatabases.length === 0}
+						<div class="panel-status">No databases match "{filter}"</div>
+					{/if}
+					{#each filteredDatabases as db}
 						{@const isActive = db.name === $activeConnection.database}
 						{@const isBusy = busyDatabase === db.name}
 						<div
@@ -286,6 +326,18 @@
 							</button>
 						</div>
 					{/each}
+					{#if !sizesLoaded}
+						<button
+							class="db-sizes-btn"
+							onclick={loadSizes}
+							disabled={sizesLoading}
+							title="Run pg_database_size for every database (can be slow on large servers)"
+							data-testid="btn-load-database-sizes"
+						>
+							<Icon name={sizesLoading ? 'refresh' : 'info'} size={12} class={sizesLoading ? 'spinning' : ''} />
+							{sizesLoading ? 'Loading sizes…' : 'Show sizes'}
+						</button>
+					{/if}
 				{/if}
 			</div>
 		{/if}
@@ -519,6 +571,86 @@
 		padding: 2px 6px 6px;
 		max-height: 260px;
 		overflow-y: auto;
+	}
+
+	.db-filter {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 4px 8px;
+		margin: 2px 0 4px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-bg-secondary);
+	}
+
+	.db-filter:focus-within {
+		border-color: var(--color-primary);
+	}
+
+	.db-filter :global(svg) {
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+	}
+
+	.db-filter input {
+		flex: 1;
+		min-width: 0;
+		border: none;
+		background: transparent;
+		color: var(--color-text);
+		font-size: 12px;
+		padding: 0;
+	}
+
+	.db-filter input:focus {
+		outline: none;
+	}
+
+	.db-filter-clear {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		background: transparent;
+		border: none;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.db-filter-clear:hover {
+		color: var(--color-text);
+	}
+
+	.db-sizes-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		width: 100%;
+		margin-top: 2px;
+		padding: 5px 8px;
+		font-size: 11px;
+		color: var(--color-text-muted);
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+	}
+
+	.db-sizes-btn:hover:not(:disabled) {
+		background: var(--color-surface);
+		color: var(--color-text);
+	}
+
+	.db-sizes-btn:disabled {
+		cursor: default;
+		opacity: 0.7;
+	}
+
+	.db-sizes-btn :global(svg) {
+		color: var(--color-text-muted);
+		flex-shrink: 0;
 	}
 
 	.panel-status,

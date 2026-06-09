@@ -46,7 +46,7 @@ test.describe('Databases panel — on-demand size loading', () => {
     await expect(app.sidebar.loadDatabaseSizesButton).toBeVisible({ timeout: 10000 });
   });
 
-  test('clicking "Show sizes" populates size badges on demand', async () => {
+  test('clicking the sizes button populates size badges on demand', async () => {
     const config = getTestConnectionConfig();
     await app.sidebar.loadDatabaseSizesButton.click();
 
@@ -57,8 +57,8 @@ test.describe('Databases panel — on-demand size loading', () => {
     // pg_size_pretty output: "8192 bytes", "1024 kB", "5 MB", etc.
     expect(text).toMatch(/^[\d.]+\s*(bytes|kB|MB|GB|TB)$/i);
 
-    // Once loaded, the button is gone.
-    await expect(app.sidebar.loadDatabaseSizesButton).toHaveCount(0);
+    // Button stays (now a reload toggle) and is marked active.
+    await expect(app.sidebar.loadDatabaseSizesButton).toHaveClass(/active/);
   });
 
   test('refresh reloads names and resets sizes to on-demand', async () => {
@@ -67,8 +67,8 @@ test.describe('Databases panel — on-demand size loading', () => {
 
     // Names re-appear quickly.
     await expect(app.sidebar.databaseOption(config.database)).toBeVisible({ timeout: 10000 });
-    // Sizes are cleared and the button is offered again.
-    await expect(app.sidebar.loadDatabaseSizesButton).toBeVisible({ timeout: 10000 });
+    // Sizes are cleared; the button reverts to its inactive (on-demand) state.
+    await expect(app.sidebar.loadDatabaseSizesButton).not.toHaveClass(/active/, { timeout: 10000 });
     await expect(
       app.page.locator(`[data-testid="database-size-${config.database}"]`)
     ).toHaveCount(0);

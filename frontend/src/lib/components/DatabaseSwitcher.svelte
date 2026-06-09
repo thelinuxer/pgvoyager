@@ -232,6 +232,16 @@
 			<div class="panel-actions">
 				<button
 					class="panel-action-btn"
+					class:active={sizesLoaded}
+					onclick={loadSizes}
+					disabled={sizesLoading || databases.length === 0}
+					title={sizesLoaded ? 'Reload database sizes' : 'Show database sizes (runs pg_database_size — can be slow on large servers)'}
+					data-testid="btn-load-database-sizes"
+				>
+					<Icon name={sizesLoading ? 'refresh' : 'hash'} size={12} class={sizesLoading ? 'spinning' : ''} />
+				</button>
+				<button
+					class="panel-action-btn"
 					onclick={loadDatabases}
 					disabled={isLoading}
 					title="Refresh databases"
@@ -326,18 +336,6 @@
 							</button>
 						</div>
 					{/each}
-					{#if !sizesLoaded}
-						<button
-							class="db-sizes-btn"
-							onclick={loadSizes}
-							disabled={sizesLoading}
-							title="Run pg_database_size for every database (can be slow on large servers)"
-							data-testid="btn-load-database-sizes"
-						>
-							<Icon name={sizesLoading ? 'refresh' : 'info'} size={12} class={sizesLoading ? 'spinning' : ''} />
-							{sizesLoading ? 'Loading sizes…' : 'Show sizes'}
-						</button>
-					{/if}
 				{/if}
 			</div>
 		{/if}
@@ -565,6 +563,11 @@
 		cursor: not-allowed;
 	}
 
+	.panel-action-btn.active {
+		color: var(--color-primary);
+		background: rgba(137, 180, 250, 0.12);
+	}
+
 	.panel-body {
 		display: flex;
 		flex-direction: column;
@@ -621,36 +624,6 @@
 
 	.db-filter-clear:hover {
 		color: var(--color-text);
-	}
-
-	.db-sizes-btn {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		width: 100%;
-		margin-top: 2px;
-		padding: 5px 8px;
-		font-size: 11px;
-		color: var(--color-text-muted);
-		background: transparent;
-		border: none;
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-	}
-
-	.db-sizes-btn:hover:not(:disabled) {
-		background: var(--color-surface);
-		color: var(--color-text);
-	}
-
-	.db-sizes-btn:disabled {
-		cursor: default;
-		opacity: 0.7;
-	}
-
-	.db-sizes-btn :global(svg) {
-		color: var(--color-text-muted);
-		flex-shrink: 0;
 	}
 
 	.panel-status,

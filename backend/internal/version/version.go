@@ -20,3 +20,12 @@ func ReleaseTagURL(tag string) string {
 func LatestReleaseAPIURL() string {
 	return "https://api.github.com/repos/" + GitHubRepo + "/releases/latest"
 }
+
+// Edition is set at build time via ldflags ("desktop" for the desktop
+// wrapper, empty otherwise). It gates self-update behavior.
+var Edition = ""
+
+// IsDesktop reports whether this build is the desktop edition.
+func IsDesktop() bool {
+	return Edition == "desktop"
+}

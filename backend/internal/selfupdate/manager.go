@@ -24,6 +24,7 @@ const (
 type State struct {
 	Edition        string `json:"edition"`
 	Status         Status `json:"status"`
+	NeedsElevation bool   `json:"needsElevation"`
 	CurrentVersion string `json:"currentVersion"`
 	LatestVersion  string `json:"latestVersion"`
 	ReleaseURL     string `json:"releaseUrl"`
@@ -42,6 +43,7 @@ type Manager struct {
 	fetchLatest func(context.Context) (tag, htmlURL string, err error)
 	downloadFn  func(context.Context, string) (string, error)
 	writable    func() bool
+	canElevate  func() bool
 	applyFn     func(string) error
 }
 
@@ -52,6 +54,7 @@ func NewManager(currentVersion string) *Manager {
 		fetchLatest: fetchLatestRelease,
 		downloadFn:  Download,
 		writable:    Writable,
+		canElevate:  canElevateFn,
 		applyFn:     Apply,
 	}
 	m.state = State{
@@ -107,16 +110,31 @@ func (m *Manager) cycle(ctx context.Context) {
 	latest := strings.TrimPrefix(tag, "v")
 	current := strings.TrimPrefix(m.current, "v")
 	if current == "dev" || compareVersions(current, latest) >= 0 {
-		m.setStatus(StatusIdle, func(s *State) { s.LatestVersion = latest; s.ReleaseURL = htmlURL; s.Error = "" })
+		m.setStatus(StatusIdle, func(s *State) {
+			s.LatestVersion = latest
+			s.ReleaseURL = htmlURL
+			s.NeedsElevation = false
+			s.Error = ""
+		})
 		return
 	}
 
-	if !m.writable() {
-		m.setStatus(StatusManual, func(s *State) { s.LatestVersion = latest; s.ReleaseURL = htmlURL; s.Error = "" })
+	writable := m.writable()
+	if !writable && !m.canElevate() {
+		m.setStatus(StatusManual, func(s *State) {
+			s.LatestVersion = latest
+			s.ReleaseURL = htmlURL
+			s.NeedsElevation = false
+			s.Error = ""
+		})
 		return
 	}
 
-	m.setStatus(StatusDownloading, func(s *State) { s.LatestVersion = latest; s.ReleaseURL = htmlURL })
+	m.setStatus(StatusDownloading, func(s *State) {
+		s.LatestVersion = latest
+		s.ReleaseURL = htmlURL
+		s.NeedsElevation = !writable
+	})
 	staged, err := m.downloadFn(ctx, tag)
 	if err != nil {
 		m.setStatus(StatusError, func(s *State) { s.Error = err.Error() })

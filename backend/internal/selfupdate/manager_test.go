@@ -36,12 +36,16 @@ func TestManagerDownloadsWhenNewer(t *testing.T) {
 	if m.staged != "/tmp/staged" {
 		t.Fatalf("staged = %q", m.staged)
 	}
+	if st.NeedsElevation {
+		t.Fatalf("NeedsElevation = true for writable install, want false")
+	}
 }
 
-func TestManagerManualWhenNotWritable(t *testing.T) {
+func TestManagerManualWhenNotWritableAndNoElevation(t *testing.T) {
 	m := newTestManager()
 	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "rel-url", nil }
 	m.writable = func() bool { return false }
+	m.canElevate = func() bool { return false }
 	called := false
 	m.downloadFn = func(context.Context, string) (string, error) { called = true; return "", nil }
 	m.cycle(context.Background())
@@ -49,7 +53,23 @@ func TestManagerManualWhenNotWritable(t *testing.T) {
 		t.Fatalf("status = %q, want manual", m.Status().Status)
 	}
 	if called {
-		t.Fatalf("downloadFn must not run when not writable")
+		t.Fatalf("downloadFn must not run when not writable and not elevatable")
+	}
+}
+
+func TestManagerElevatedWhenNotWritable(t *testing.T) {
+	m := newTestManager()
+	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "url", nil }
+	m.writable = func() bool { return false }
+	m.canElevate = func() bool { return true }
+	m.downloadFn = func(context.Context, string) (string, error) { return "/tmp/staged", nil }
+	m.cycle(context.Background())
+	st := m.Status()
+	if st.Status != StatusReady {
+		t.Fatalf("status = %q, want ready", st.Status)
+	}
+	if !st.NeedsElevation {
+		t.Fatalf("NeedsElevation = false, want true")
 	}
 }
 

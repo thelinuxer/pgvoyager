@@ -16,14 +16,23 @@ import (
 var (
 	baseURL    = "https://github.com/" + version.GitHubRepo + "/releases/download/"
 	httpClient = &http.Client{Timeout: 5 * time.Minute}
-	// stagingDir returns the directory to stage the download into — the
-	// running executable's directory, so the later rename is on one filesystem.
+	// stagingDir returns where to stage the download. Prefer the running
+	// executable's directory (so Apply can atomically rename); if that dir is
+	// not writable, fall back to a user temp dir and let Apply elevate the swap.
 	stagingDir = func() (string, error) {
 		exe, err := exePath()
 		if err != nil {
 			return "", err
 		}
-		return filepath.Dir(exe), nil
+		dir := filepath.Dir(exe)
+		if writableDir(dir) {
+			return dir, nil
+		}
+		tmp := filepath.Join(os.TempDir(), "pgvoyager-update")
+		if err := os.MkdirAll(tmp, 0o755); err != nil {
+			return "", err
+		}
+		return tmp, nil
 	}
 )
 

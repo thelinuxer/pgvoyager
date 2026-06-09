@@ -20,13 +20,21 @@ var osEnviron = os.Environ
 // same filesystem; permitted over a running binary on Linux/macOS), spawns the
 // new binary detached, and only then signals the current process to exit. If
 // the spawn fails the current process is left running so the user can retry.
+// When the rename fails (e.g. cross-device or permission denied) and a
+// privilege-escalation tool is available, Apply falls back to an elevated copy.
 func Apply(stagedPath string) error {
 	exe, err := exePathFn()
 	if err != nil {
 		return err
 	}
 	if err := os.Rename(stagedPath, exe); err != nil {
-		return fmt.Errorf("selfupdate: swap binary: %w", err)
+		if !canElevateFn() {
+			return fmt.Errorf("selfupdate: swap binary: %w", err)
+		}
+		if err := elevatedReplaceFn(stagedPath, exe); err != nil {
+			return err
+		}
+		_ = os.Remove(stagedPath) // elevated path copies; clean the staged source
 	}
 	if err := spawnDetached(exe); err != nil {
 		return fmt.Errorf("selfupdate: relaunch: %w", err)

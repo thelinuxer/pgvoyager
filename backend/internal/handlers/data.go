@@ -791,6 +791,16 @@ func ExplainQuery(c *gin.Context) {
 		return
 	}
 
+	// Guard against multi-statement injection. When req.Params is empty pgx
+	// uses the simple-query protocol, which executes all semicolon-delimited
+	// statements in the string — meaning "SELECT 1; DROP TABLE t" would run
+	// both despite the EXPLAIN wrapper. Reject anything that isn't a single
+	// statement before we build the EXPLAIN query.
+	if stmts := splitStatements(req.SQL); len(stmts) > 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "EXPLAIN accepts a single statement"})
+		return
+	}
+
 	explainQuery := "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) " + req.SQL
 
 	start := time.Now()

@@ -60,3 +60,33 @@ func TestConvertValuePassthrough(t *testing.T) {
 		t.Errorf("convertValue(42) = %v, want 42", got)
 	}
 }
+
+// TestExplainMultiStatementGuard verifies that splitStatements, which backs the
+// ExplainQuery multi-statement guard, correctly distinguishes single from
+// multi-statement input. The guard itself (in ExplainQuery) rejects len>1 to
+// prevent simple-query-protocol injection like "SELECT 1; DROP TABLE t".
+func TestExplainMultiStatementGuard(t *testing.T) {
+	cases := []struct {
+		name     string
+		sql      string
+		wantMany bool
+	}{
+		{"single select", "SELECT 1", false},
+		{"single select with semicolon", "SELECT 1;", false},
+		{"multi-statement injection", "SELECT 1; DROP TABLE t", true},
+		{"multi-statement with comment suffix", "SELECT 1; DROP TABLE t;--", true},
+		{"double semi in string literal", "SELECT ';' AS x", false},
+		{"two real statements", "SELECT 1; SELECT 2", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stmts := splitStatements(tc.sql)
+			gotMany := len(stmts) > 1
+			if gotMany != tc.wantMany {
+				t.Errorf("splitStatements(%q) returned %d stmts (wantMany=%v)",
+					tc.sql, len(stmts), tc.wantMany)
+			}
+		})
+	}
+}

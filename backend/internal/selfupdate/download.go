@@ -76,6 +76,8 @@ func Download(ctx context.Context, tag string) (string, error) {
 	return staged, nil
 }
 
+const maxBinaryBytes = 256 << 20 // 256 MiB — generous for a Go binary
+
 func fetchToFile(ctx context.Context, url, dest string) error {
 	resp, err := httpGet(ctx, url)
 	if err != nil {
@@ -87,7 +89,7 @@ func fetchToFile(ctx context.Context, url, dest string) error {
 	if err != nil {
 		return err
 	}
-	_, copyErr := io.Copy(f, resp.Body)
+	_, copyErr := io.Copy(f, io.LimitReader(resp.Body, maxBinaryBytes))
 	closeErr := f.Close()
 	if copyErr != nil {
 		_ = os.Remove(dest)

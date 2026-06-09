@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/thelinuxer/pgvoyager/internal/version"
@@ -15,6 +16,8 @@ type githubRelease struct {
 }
 
 var latestReleaseURL = "https://api.github.com/repos/" + version.GitHubRepo + "/releases/latest"
+
+var tagPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+([.\-+][0-9A-Za-z.\-]+)?$`)
 
 // fetchLatestRelease returns the latest release tag and its HTML URL.
 func fetchLatestRelease(ctx context.Context) (string, string, error) {
@@ -29,6 +32,9 @@ func fetchLatestRelease(ctx context.Context) (string, string, error) {
 	}
 	if rel.TagName == "" {
 		return "", "", fmt.Errorf("selfupdate: empty tag in latest release")
+	}
+	if !tagPattern.MatchString(rel.TagName) {
+		return "", "", fmt.Errorf("selfupdate: release tag %q does not match expected pattern", rel.TagName)
 	}
 	return rel.TagName, rel.HTMLURL, nil
 }

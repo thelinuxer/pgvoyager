@@ -33,9 +33,10 @@ func TestDownloadVerifiesAndStages(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	origBase, origDir := baseURL, stagingDir
-	t.Cleanup(func() { baseURL, stagingDir = origBase, origDir })
+	origBase, origDir, origHost := baseURL, stagingDir, hostAllowed
+	t.Cleanup(func() { baseURL, stagingDir, hostAllowed = origBase, origDir, origHost })
 	baseURL = srv.URL + "/"
+	hostAllowed = func(string) bool { return true } // httptest runs on 127.0.0.1
 	dir := t.TempDir()
 	stagingDir = func() (string, error) { return dir, nil }
 
@@ -66,9 +67,10 @@ func TestDownloadRejectsBadChecksum(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	origBase, origDir := baseURL, stagingDir
-	t.Cleanup(func() { baseURL, stagingDir = origBase, origDir })
+	origBase, origDir, origHost := baseURL, stagingDir, hostAllowed
+	t.Cleanup(func() { baseURL, stagingDir, hostAllowed = origBase, origDir, origHost })
 	baseURL = srv.URL + "/"
+	hostAllowed = func(string) bool { return true } // httptest runs on 127.0.0.1
 	dir := t.TempDir()
 	stagingDir = func() (string, error) { return dir, nil }
 
@@ -78,5 +80,31 @@ func TestDownloadRejectsBadChecksum(t *testing.T) {
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 0 {
 		t.Fatalf("staged temp not cleaned up: %v", entries)
+	}
+}
+
+func TestDefaultHostAllowed(t *testing.T) {
+	allowed := []string{"github.com", "api.github.com", "codeload.github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"}
+	for _, h := range allowed {
+		if !defaultHostAllowed(h) {
+			t.Errorf("defaultHostAllowed(%q) = false, want true", h)
+		}
+	}
+	denied := []string{"evil.com", "github.com.evil.com", "notgithub.com", "githubusercontent.com.evil.com", "127.0.0.1"}
+	for _, h := range denied {
+		if defaultHostAllowed(h) {
+			t.Errorf("defaultHostAllowed(%q) = true, want false", h)
+		}
+	}
+}
+
+func TestDownloadRejectsDisallowedHost(t *testing.T) {
+	origBase := baseURL
+	t.Cleanup(func() { baseURL = origBase })
+	// Real default allowlist is active here (not overridden); a non-GitHub
+	// base URL must be refused before any network call.
+	baseURL = "https://evil.example.com/"
+	if _, err := Download(context.Background(), "v9.9.9"); err == nil {
+		t.Fatalf("expected refusal for disallowed host")
 	}
 }

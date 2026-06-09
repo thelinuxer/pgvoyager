@@ -7,15 +7,44 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/thelinuxer/pgvoyager/internal/version"
 )
 
+// hostAllowed restricts every update request — including each redirect hop —
+// to GitHub-controlled hosts. GitHub release-asset downloads 302-redirect from
+// github.com to GitHub's asset CDN (objects.githubusercontent.com /
+// codeload.github.com), so the asset hosts must be included or downloads break.
+// It is a seam so tests can point baseURL at a local httptest server.
+var hostAllowed = defaultHostAllowed
+
+func defaultHostAllowed(host string) bool {
+	host = strings.ToLower(host)
+	switch host {
+	case "github.com", "api.github.com", "codeload.github.com":
+		return true
+	}
+	return strings.HasSuffix(host, ".githubusercontent.com")
+}
+
 // Overridable for tests.
 var (
 	baseURL    = "https://github.com/" + version.GitHubRepo + "/releases/download/"
-	httpClient = &http.Client{Timeout: 5 * time.Minute}
+	httpClient = &http.Client{
+		Timeout: 5 * time.Minute,
+		// Follow redirects only to allowlisted GitHub hosts, and cap the chain.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("selfupdate: too many redirects")
+			}
+			if !hostAllowed(req.URL.Hostname()) {
+				return fmt.Errorf("selfupdate: refusing redirect to disallowed host %q", req.URL.Host)
+			}
+			return nil
+		},
+	}
 	// stagingDir returns where to stage the download. Prefer the running
 	// executable's directory (so Apply can atomically rename); if that dir is
 	// not writable, fall back to a user-private cache dir and let Apply elevate
@@ -116,6 +145,9 @@ func httpGet(ctx context.Context, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
+	}
+	if !hostAllowed(req.URL.Hostname()) {
+		return nil, fmt.Errorf("selfupdate: refusing request to disallowed host %q", req.URL.Host)
 	}
 	req.Header.Set("User-Agent", "PgVoyager/"+version.Version)
 	resp, err := httpClient.Do(req)

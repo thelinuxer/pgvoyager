@@ -359,6 +359,7 @@ export interface UpdateStatus {
 	latestVersion: string;
 	releaseUrl: string;
 	needsElevation?: boolean;
+	progress?: number;
 	error?: string;
 	restartToken?: string;
 }

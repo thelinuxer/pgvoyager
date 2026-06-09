@@ -21,9 +21,22 @@
 	let update = $state<UpdateStatus | null>(null);
 	let restarting = $state(false);
 
-	// Polling cadence: the desktop process does the heavy lifting (check +
-	// download). The UI only polls to learn when an update is ready.
-	const UPDATE_POLL_MS = 30 * 60 * 1000;
+	// The desktop process does the check + download in the background; the UI
+	// polls /update/status to learn the result. Poll fast while a check/download
+	// is in flight (the on-open download takes ~15s), and back off once the
+	// state is settled (ready / manual / idle / error) — otherwise a freshly
+	// staged update wouldn't surface until the next slow poll.
+	const UPDATE_POLL_DOWNLOADING_MS = 1000; // smooth % bar while downloading
+	const UPDATE_POLL_FAST_MS = 4 * 1000; // while checking / before first status
+	const UPDATE_POLL_SLOW_MS = 5 * 60 * 1000; // settled (ready/manual/idle/error)
+	let updateTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function nextPollDelay(): number {
+		const s = update?.status;
+		if (s === 'downloading') return UPDATE_POLL_DOWNLOADING_MS;
+		if (s === undefined || s === 'checking') return UPDATE_POLL_FAST_MS;
+		return UPDATE_POLL_SLOW_MS;
+	}
 
 	async function refreshUpdateStatus() {
 		try {
@@ -31,6 +44,11 @@
 		} catch {
 			// Non-fatal: badge falls back to nothing.
 		}
+	}
+
+	async function pollUpdateLoop() {
+		await refreshUpdateStatus();
+		updateTimer = setTimeout(pollUpdateLoop, nextPollDelay());
 	}
 
 	async function handleRestart() {
@@ -45,9 +63,8 @@
 	}
 
 	onMount(() => {
-		refreshUpdateStatus();
-		const timer = setInterval(refreshUpdateStatus, UPDATE_POLL_MS);
-		return () => clearInterval(timer);
+		pollUpdateLoop();
+		return () => clearTimeout(updateTimer);
 	});
 
 	async function handleConnect(id: string) {
@@ -112,9 +129,16 @@
 					Restart to update
 				</button>
 			{:else if update.status === 'downloading'}
-				<span class="version-badge" title="Downloading update {update.latestVersion}…">
+				<span class="version-badge update-downloading" title="Downloading update {update.latestVersion}…">
 					<Icon name="refresh" size={12} class="spinning" />
-					{update.currentVersion}
+					{#if update.progress && update.progress > 0}
+						Downloading {update.progress}%
+						<span class="update-progress" aria-hidden="true">
+							<span class="update-progress-fill" style="width: {update.progress}%"></span>
+						</span>
+					{:else}
+						Downloading…
+					{/if}
 				</span>
 			{:else if update.status === 'manual'}
 				<a href={update.releaseUrl} target="_blank" rel="noopener noreferrer"
@@ -251,6 +275,25 @@
 
 	.version-badge.update-available:hover {
 		background: rgba(137, 180, 250, 0.2);
+	}
+
+	.update-progress {
+		display: inline-block;
+		width: 48px;
+		height: 4px;
+		margin-left: 2px;
+		background: var(--color-border);
+		border-radius: 2px;
+		overflow: hidden;
+		vertical-align: middle;
+	}
+
+	.update-progress-fill {
+		display: block;
+		height: 100%;
+		background: var(--color-primary);
+		border-radius: 2px;
+		transition: width 0.2s ease;
 	}
 
 	.version-badge.update-ready {

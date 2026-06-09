@@ -104,7 +104,9 @@
 				</span>
 			{:else if update.status === 'ready'}
 				<button class="version-badge update-ready" onclick={handleRestart}
-				        title="Update {update.latestVersion} ready — restart to apply"
+				        title={update.needsElevation
+				          ? `Update ${update.latestVersion} ready — restart to apply (will ask for your admin password)`
+				          : `Update ${update.latestVersion} ready — restart to apply`}
 				        data-testid="btn-update-restart">
 					<span class="update-dot"></span>
 					Restart to update

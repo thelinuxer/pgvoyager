@@ -70,11 +70,13 @@ jobs:
           # Desktop wrapper — pure Go via lorca, so the same single-runner
           # cross-compile applies. Users need a Chromium-family browser
           # installed at runtime; the binary doesn't bundle one.
-          GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-desktop-linux-amd64       ./cmd/desktop
-          GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-desktop-linux-arm64       ./cmd/desktop
-          GOOS=darwin  GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-desktop-darwin-amd64      ./cmd/desktop
-          GOOS=darwin  GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-desktop-darwin-arm64      ./cmd/desktop
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../releases/pgvoyager-desktop-windows-amd64.exe ./cmd/desktop
+          # Tagged with version.Edition=desktop so the binary self-updates.
+          DESKTOP_LDFLAGS="${LDFLAGS} -X github.com/thelinuxer/pgvoyager/internal/version.Edition=desktop"
+          GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${DESKTOP_LDFLAGS}" -o ../releases/pgvoyager-desktop-linux-amd64       ./cmd/desktop
+          GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${DESKTOP_LDFLAGS}" -o ../releases/pgvoyager-desktop-linux-arm64       ./cmd/desktop
+          GOOS=darwin  GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${DESKTOP_LDFLAGS}" -o ../releases/pgvoyager-desktop-darwin-amd64      ./cmd/desktop
+          GOOS=darwin  GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${DESKTOP_LDFLAGS}" -o ../releases/pgvoyager-desktop-darwin-arm64      ./cmd/desktop
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${DESKTOP_LDFLAGS}" -o ../releases/pgvoyager-desktop-windows-amd64.exe ./cmd/desktop
 
       - name: Generate icons
         run: |
@@ -176,6 +178,12 @@ jobs:
         with:
           name: build-artifacts
 
+      - name: Generate SHA256SUMS
+        run: |
+          cd releases
+          sha256sum pgvoyager-desktop-* > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -198,4 +206,5 @@ jobs:
             releases/pgvoyager-desktop-darwin-amd64
             releases/pgvoyager-desktop-darwin-arm64
             releases/pgvoyager-desktop-windows-amd64.exe
+            releases/SHA256SUMS
           generate_release_notes: true

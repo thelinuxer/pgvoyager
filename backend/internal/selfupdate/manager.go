@@ -145,5 +145,12 @@ func (m *Manager) Restart() error {
 	if !ready {
 		return fmt.Errorf("selfupdate: no staged update to apply")
 	}
-	return m.applyFn(staged)
+	if err := m.applyFn(staged); err != nil {
+		m.mu.Lock()
+		m.state.Status = StatusError
+		m.state.Error = err.Error()
+		m.mu.Unlock()
+		return err
+	}
+	return nil
 }

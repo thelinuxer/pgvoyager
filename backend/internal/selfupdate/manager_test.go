@@ -70,3 +70,36 @@ func TestManagerRestartGuards(t *testing.T) {
 		t.Fatalf("Restart with no staged update should error")
 	}
 }
+
+func TestManagerRestartCallsApply(t *testing.T) {
+	m := newTestManager()
+	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "url", nil }
+	m.writable = func() bool { return true }
+	m.downloadFn = func(context.Context, string) (string, error) { return "/tmp/staged", nil }
+	m.cycle(context.Background())
+
+	var applied string
+	m.applyFn = func(p string) error { applied = p; return nil }
+	if err := m.Restart(); err != nil {
+		t.Fatalf("Restart error: %v", err)
+	}
+	if applied != "/tmp/staged" {
+		t.Fatalf("applyFn called with %q, want /tmp/staged", applied)
+	}
+}
+
+func TestManagerRestartSetsErrorOnApplyFailure(t *testing.T) {
+	m := newTestManager()
+	m.fetchLatest = func(context.Context) (string, string, error) { return "v2.0.0", "url", nil }
+	m.writable = func() bool { return true }
+	m.downloadFn = func(context.Context, string) (string, error) { return "/tmp/staged", nil }
+	m.cycle(context.Background())
+
+	m.applyFn = func(string) error { return errors.New("rename failed") }
+	if err := m.Restart(); err == nil {
+		t.Fatalf("expected error from Restart")
+	}
+	if m.Status().Status != StatusError {
+		t.Fatalf("status = %q, want error", m.Status().Status)
+	}
+}

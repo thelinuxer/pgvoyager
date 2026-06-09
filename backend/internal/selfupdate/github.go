@@ -35,6 +35,8 @@ func fetchLatestRelease(ctx context.Context) (string, string, error) {
 
 // compareVersions compares dotted numeric versions: -1 if a<b, 0 equal, 1 a>b.
 func compareVersions(a, b string) int {
+	a = strings.SplitN(a, "-", 2)[0]
+	b = strings.SplitN(b, "-", 2)[0]
 	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
 	for i := 0; i < len(pa) && i < len(pb); i++ {
 		var na, nb int

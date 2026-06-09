@@ -66,14 +66,20 @@ func fetchToFile(ctx context.Context, url, dest string) error {
 		return err
 	}
 	defer resp.Body.Close()
+
 	f, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	if _, err := io.Copy(f, resp.Body); err != nil {
+	_, copyErr := io.Copy(f, resp.Body)
+	closeErr := f.Close()
+	if copyErr != nil {
 		_ = os.Remove(dest)
-		return err
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(dest)
+		return closeErr
 	}
 	return nil
 }

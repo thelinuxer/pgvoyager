@@ -230,3 +230,21 @@ frontend GET /update/status (poll) ─> renders badge / "Restart now"
 - `apply` targets only `os.Executable()`'s own directory — no arbitrary paths.
 - Protects against corrupted/partial downloads, not a compromised release
   (signing is future work).
+
+### Privileged-update threat model (Linux pkexec)
+
+- Staging for non-writable installs goes to `~/.cache/pgvoyager/update` (0700,
+  user-owned). No other local user can write or swap the staged file, so the
+  cross-user symlink/TOCTOU class against the root copy is closed.
+- `elevatedReplace` `lstat`s the staged file (regular + owned by euid) and uses
+  `install -m 0755 -o root -g root` (no shell, no destination symlink-follow,
+  single owner+mode step) — not `cp -f` + `chmod` via `/bin/sh -c`.
+- Staged bytes are SHA256-verified against the release `SHA256SUMS` at download.
+- **Accepted residual / future work:** a same-uid swap of the staged file
+  between verify and the elevated copy is not a privilege boundary (that user
+  already controls execution and types the admin password). Defending a
+  compromised-but-authenticating account would require a signed payload
+  re-verified inside a dedicated root helper (open `staged` `O_NOFOLLOW` in the
+  unprivileged parent, pass the fd, re-verify a signature against an embedded
+  public key before writing). That needs release-signing infrastructure and is
+  tracked as future work alongside general release signing.
